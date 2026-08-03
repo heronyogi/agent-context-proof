@@ -1,0 +1,12 @@
+{
+  "id": "ownership:orion-release",
+  "owner_id": "owner:release-council",
+  "owner_label": "Release Council",
+  "owner_role": "repository-owner",
+  "source": "context/ownership.json",
+  "target_references": [
+    "Orion 1.0.0",
+    "orion-service-v1.0.0"
+  ],
+  "version": "0.1.0"
+}

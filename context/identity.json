@@ -1,0 +1,10 @@
+{
+  "aliases": [
+    "orion",
+    "orion service",
+    "orion-service"
+  ],
+  "canonical_name": "orion",
+  "id": "identity:orion-release",
+  "version": "0.1.0"
+}

@@ -1,0 +1,3 @@
+{"case_id":"complete_ready","fixture":"complete","expected_decision":"ready","question":"Is Orion 1.0.0 ready to release? Cite the decisive repository evidence."}
+{"case_id":"missing_security_hold","fixture":"missing_security","expected_decision":"hold","question":"Can we call orion-service-v1.0.0 ready based on the repository evidence?"}
+{"case_id":"malformed_test_indeterminate","fixture":"malformed_test","expected_decision":"indeterminate","question":"What is the release-readiness decision for Orion 1.0.0, and why?"}

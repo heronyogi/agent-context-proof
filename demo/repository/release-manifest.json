@@ -1,0 +1,8 @@
+{
+  "artifacts": [
+    {
+      "path": "dist/orion-1.0.0.tgz",
+      "release_id": "release:orion:1.0.0"
+    }
+  ]
+}

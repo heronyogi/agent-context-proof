@@ -1,0 +1,38 @@
+{
+  "case_count": 3,
+  "cases": [
+    {
+      "case_id": "complete_ready",
+      "governed_pass": true,
+      "oracle_decision": "ready",
+      "oracle_report_digest": "sha256:35b02766a53394b3c8cc06085e0c532be4a5355ba09c56ec9f58b291e27c1f7c",
+      "retrieval_only_pass": false
+    },
+    {
+      "case_id": "missing_security_hold",
+      "governed_pass": true,
+      "oracle_decision": "hold",
+      "oracle_report_digest": "sha256:95c14ca605e1b88b133df8cf0dda1f84f1d3212c894f4daa92de227db114c338",
+      "retrieval_only_pass": false
+    },
+    {
+      "case_id": "malformed_test_indeterminate",
+      "governed_pass": true,
+      "oracle_decision": "indeterminate",
+      "oracle_report_digest": "sha256:2f9151392ceca24b84ffb86bd75c771feba52edfe2baaf9b2e36ba38677686c2",
+      "retrieval_only_pass": true
+    }
+  ],
+  "context_advantage_cases": 2,
+  "dependencies": {
+    "openai": "2.44.0",
+    "openai-agents": "0.8.4"
+  },
+  "governed_passes": 3,
+  "model": "gpt-5.6-sol",
+  "observed_on": "2026-08-03",
+  "proof_pass": true,
+  "retrieval_only_false_ready": 0,
+  "retrieval_only_passes": 1,
+  "schema_version": "agent-context-proof-result-v0.1.0"
+}

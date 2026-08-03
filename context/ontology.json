@@ -1,0 +1,38 @@
+{
+  "allowed_relations": [
+    {
+      "relation": "BLOCKED_BY",
+      "source_kind": "requirement",
+      "target_kind": "evidence"
+    },
+    {
+      "relation": "EVIDENCED_BY",
+      "source_kind": "requirement",
+      "target_kind": "evidence"
+    },
+    {
+      "relation": "GOVERNS",
+      "source_kind": "policy",
+      "target_kind": "release"
+    },
+    {
+      "relation": "OWNED_BY",
+      "source_kind": "release",
+      "target_kind": "owner"
+    },
+    {
+      "relation": "RELEASE_REQUIRES",
+      "source_kind": "release",
+      "target_kind": "requirement"
+    }
+  ],
+  "entity_kinds": [
+    "evidence",
+    "owner",
+    "policy",
+    "release",
+    "requirement"
+  ],
+  "id": "ontology:repository-release-context",
+  "version": "0.1.0"
+}

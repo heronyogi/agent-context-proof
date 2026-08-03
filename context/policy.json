@@ -1,0 +1,55 @@
+{
+  "id": "orion-1.0.0-release-readiness",
+  "label": "Orion 1.0.0 release-readiness policy",
+  "requirements": [
+    {
+      "check": "path_exists",
+      "id": "requirement:artifact-bytes",
+      "label": "Release artifact bytes exist",
+      "source": "dist/orion-1.0.0.tgz"
+    },
+    {
+      "check": "json_array_contains",
+      "expected": "dist/orion-1.0.0.tgz",
+      "id": "requirement:artifact-registration",
+      "label": "Release manifest registers the artifact",
+      "match_field": "path",
+      "selector": "artifacts",
+      "source": "release-manifest.json"
+    },
+    {
+      "check": "toml_field_equals",
+      "expected": "1.0.0",
+      "id": "requirement:package-version",
+      "label": "Package metadata has the governed version",
+      "selector": "project.version",
+      "source": "service.toml"
+    },
+    {
+      "check": "json_fields_equal",
+      "expected_fields": {
+        "release_id": "release:orion:1.0.0",
+        "status": "approved"
+      },
+      "id": "requirement:security-review",
+      "label": "Security review is approved for the governed release",
+      "source": "evidence/security-review.json"
+    },
+    {
+      "check": "json_fields_equal",
+      "expected_fields": {
+        "release_id": "release:orion:1.0.0",
+        "status": "passed"
+      },
+      "id": "requirement:test-run",
+      "label": "Release test run passed for the governed release",
+      "source": "evidence/test-run.json"
+    }
+  ],
+  "target_label": "Orion 1.0.0",
+  "target_references": [
+    "Orion 1.0.0",
+    "orion-service-v1.0.0"
+  ],
+  "version": "0.1.0"
+}
