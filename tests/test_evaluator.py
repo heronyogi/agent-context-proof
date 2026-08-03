@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -93,7 +94,7 @@ def test_policy_target_must_resolve(complete_repository: Path, tmp_path: Path) -
         evaluate_context(complete_repository, contract_root=contracts)
 
 
-def test_published_proof_result_is_coherent() -> None:
+def test_published_proof_result_is_coherent(tmp_path: Path) -> None:
     result = json.loads(
         (PROJECT_ROOT / "docs" / "proof-result.v0.1.json").read_text(
             encoding="utf-8"
@@ -103,6 +104,18 @@ def test_published_proof_result_is_coherent() -> None:
     assert result["governed_passes"] == result["case_count"] == 3
     assert result["context_advantage_cases"] >= 1
     assert all(item["governed_pass"] for item in result["cases"])
+    for item in result["cases"]:
+        root = tmp_path / item["case_id"]
+        shutil.copytree(PROJECT_ROOT / "demo" / "repository", root)
+        if item["case_id"] == "missing_security_hold":
+            (root / "evidence" / "security-review.json").unlink()
+        elif item["case_id"] == "malformed_test_indeterminate":
+            (root / "evidence" / "test-run.json").write_text(
+                "not-json\n", encoding="utf-8"
+            )
+        report = evaluate_context(root, contract_root=CONTRACT_ROOT)
+        assert report.decision.value == item["oracle_decision"]
+        assert report.report_digest == item["oracle_report_digest"]
 
 
 def test_cli_discovers_checkout_from_nested_directory() -> None:

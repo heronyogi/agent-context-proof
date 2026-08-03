@@ -5,21 +5,21 @@
       "case_id": "complete_ready",
       "governed_pass": true,
       "oracle_decision": "ready",
-      "oracle_report_digest": "sha256:35b02766a53394b3c8cc06085e0c532be4a5355ba09c56ec9f58b291e27c1f7c",
+      "oracle_report_digest": "sha256:d0a3c4dd24a2273edc36c79dae7cfa19512c938313fa14bdd043c18ae100bb3d",
       "retrieval_only_pass": false
     },
     {
       "case_id": "missing_security_hold",
       "governed_pass": true,
       "oracle_decision": "hold",
-      "oracle_report_digest": "sha256:95c14ca605e1b88b133df8cf0dda1f84f1d3212c894f4daa92de227db114c338",
+      "oracle_report_digest": "sha256:08d26bc1ee65217d66292d05d1fec694d9906e444ecebc312b68a3389e9159fe",
       "retrieval_only_pass": false
     },
     {
       "case_id": "malformed_test_indeterminate",
       "governed_pass": true,
       "oracle_decision": "indeterminate",
-      "oracle_report_digest": "sha256:2f9151392ceca24b84ffb86bd75c771feba52edfe2baaf9b2e36ba38677686c2",
+      "oracle_report_digest": "sha256:74357e3fa0ea051fe2ec9bd546941d98a29734bf5702e823fb5e2e3148043b78",
       "retrieval_only_pass": true
     }
   ],
