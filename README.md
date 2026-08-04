@@ -8,6 +8,22 @@ source, production data, or internal names are included.
 
 ![Governed context architecture](docs/agent-interactions.png)
 
+## v0.3 protocol draft
+
+The approved v0.2.2 proof is frozen at merge commit `3741aae`. The next
+experiment is deliberately protocol-first: it separates mechanism conformance
+from authority validity, introduces an explicit `AUTHORITY_CONFLICT`
+disposition, requires independently authored blind case families, and specifies
+a genuinely independent retrieval-plus-rules comparator with equivalent input
+access.
+
+No v0.3 implementation or result is claimed. Implementation remains gated on
+independent review of:
+
+- [`docs/proof-protocol.v0.3.md`](docs/proof-protocol.v0.3.md);
+- [`docs/proof-protocol.v0.3.json`](docs/proof-protocol.v0.3.json); and
+- [`docs/case-authoring.v0.3.md`](docs/case-authoring.v0.3.md).
+
 ## What v0.2 tests
 
 The model does not own release facts or authorization. One deterministic,

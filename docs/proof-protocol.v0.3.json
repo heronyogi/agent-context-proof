@@ -1,0 +1,72 @@
+{
+  "authority_statuses": [
+    "VALID",
+    "INVALID",
+    "CONFLICT",
+    "INDETERMINATE"
+  ],
+  "base_commit": "3741aae69b779af36882705e7a8fb61bf734474a",
+  "blind_case_minimum": 12,
+  "blind_family_minimum": 4,
+  "compared_paths": {
+    "full_packet_reasoning": {
+      "classification": "tertiary_descriptive_control",
+      "required": false
+    },
+    "governed": {
+      "provider_independent_evaluator": true,
+      "required": true
+    },
+    "retrieval_plus_rules": {
+      "independent_authority_resolver": true,
+      "independent_policy_executor": true,
+      "may_import_oracle_or_governed_evaluator": false,
+      "required": true,
+      "same_permitted_inputs": true
+    }
+  },
+  "dispositions": [
+    "READY",
+    "HOLD",
+    "INDETERMINATE",
+    "AUTHORITY_CONFLICT"
+  ],
+  "failure_classes": [
+    "STALE_OR_CORRUPTED_POLICY",
+    "CONFLICTING_VALID_AUTHORITIES",
+    "ADVERSARIAL_OR_MISLEADING_EVIDENCE",
+    "AMBIGUOUS_OWNERSHIP",
+    "VALID_ROOT_ROTATION",
+    "ROLLBACK",
+    "VALID_REISSUANCE",
+    "ROOT_COMPROMISE",
+    "REVOCATION",
+    "OVERLAPPING_AUTHORITY"
+  ],
+  "implementation_gate": "AWAITING_INDEPENDENT_PROTOCOL_REVIEW",
+  "mechanism_statuses": [
+    "CONFORMANT",
+    "NONCONFORMANT",
+    "INDETERMINATE"
+  ],
+  "metrics": {
+    "authority_conflict_precision_recall": true,
+    "false_ready": true,
+    "indeterminate_selective_metrics": true,
+    "joint_exact_match": true,
+    "probability_calibration_only_when_emitted": true,
+    "provenance_and_digest_replay": true,
+    "raw_case_repeat_matrix": true,
+    "repeat_as_independent_observation": false
+  },
+  "pass_conditions": {
+    "allowed_false_ready": 0,
+    "allowed_missed_authority_conflicts": 0,
+    "blind_pack_must_remain_sealed_until_freeze": true,
+    "exact_joint_match_required": true,
+    "exact_provenance_required": true,
+    "model_override_allowed": false
+  },
+  "schema_version": "agent-context-proof-protocol-v0.3.0",
+  "status": "PROTOCOL_DRAFT"
+}
