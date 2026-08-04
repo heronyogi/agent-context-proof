@@ -61,7 +61,7 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.4"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.5"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"

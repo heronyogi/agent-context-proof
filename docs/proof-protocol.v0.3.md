@@ -110,7 +110,7 @@ drift.
 | `time` | Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end; authorize each entry once at issued_at, then apply an already-authorized delayed transition at its effective boundary without reauthorizing the signer. |
 | `scope` | Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; specificity never creates implicit precedence. |
 | `epoch` | Use non-negative integers comparable only within one lineage; accept only a predecessor-signed successor at predecessor epoch plus one, and let the highest validated effective epoch dominate older lineage entries. |
-| `revocation` | A valid revocation applies at and after effective_at, including to signatures made earlier; it must be signed by a then-valid authority whose scope grants revoke for the target. |
+| `revocation` | A valid revocation applies at and after effective_at, including to non-revocation records signed earlier; it must be signed by a then-valid authority whose scope grants revoke for the target, and the revocation action remains durable if its signer is later revoked. |
 | `rollback` | Externally committed lineage heads pin the expected effective epoch and payload; a lower or different presented head is rollback and INVALID, while historical transition records remain chain provenance. |
 | `precedence` | Represent precedence only as signed, scoped, time-bounded higher_issuer_id to lower_issuer_id edges; apply transitive closure, and treat an active cycle as INDETERMINATE. |
 | `recovery` | A suspected root cannot authenticate its own recovery; recovery or compromise resolution must chain to a separately supplied recovery trust anchor. |
@@ -127,7 +127,7 @@ The following table is normative and mirrored in the machine protocol.
 | --- | --- | --- |
 | `delegation` | `subject_issuer_id`, `subject_key_id`, `subject_public_key_base64url`, `subject_lineage_id`, `subject_epoch`, `permissions` | The signer must be current at issued_at and hold delegate permission for the matching scope; permissions are unique and Unicode-code-point sorted. |
 | `rotation` | `predecessor_entry_id`, `successor_issuer_id`, `successor_key_id`, `successor_public_key_base64url`, `successor_permissions`, `successor_epoch` | The current predecessor signs one successor in the same lineage at issuer_epoch plus one; it becomes effective at not_before. |
-| `revocation` | `target_entry_id`, `target_issuer_id`, `effective_at` | A signer valid immediately before issued_at must hold revoke permission; the target is revoked when validation_time is at or after effective_at. |
+| `revocation` | `target_entry_id`, `target_issuer_id`, `effective_at` | A signer valid immediately before issued_at must hold revoke permission; target_entry_id must uniquely resolve to an authority-introduction record whose introduced issuer is target_issuer_id, and the grant is durably revoked when validation_time is at or after effective_at. |
 | `precedence` | `higher_issuer_id`, `lower_issuer_id` | A current signer with set_precedence permission creates one directed edge only for matching scope and the entry validity interval. |
 | `recovery` | `compromised_issuer_id`, `compromised_lineage_id`, `predecessor_entry_id`, `replacement_issuer_id`, `replacement_key_id`, `replacement_public_key_base64url`, `replacement_lineage_id`, `replacement_epoch`, `replacement_permissions`, `effective_at` | The signer must resolve from the separate recovery trust-anchor set with recover permission; at effective_at, predecessor_entry_id must be the current head of compromised_lineage_id for compromised_issuer_id, replacement_lineage_id must equal that lineage, and replacement_epoch must equal the predecessor epoch plus one. |
 | `claim` | `claim_name`, `claim_value` | The signer must be current at validation_time and hold claim permission for the complete case coordinate. |
@@ -160,7 +160,7 @@ authorize recovery.
 | `L4_KEY_RESOLUTION` | Resolve signature.key_id uniquely from an external trust anchor or an already valid delegation, rotation, or recovery record; require it to equal issuer_key_id and the digest of the raw public key. |
 | `L5_SIGNATURE` | Verify the 64 raw Ed25519 signature bytes over the canonical payload before evaluating authority semantics. |
 | `L6_AUTHORIZATION` | At issued_at, require the signer to be current, unrevoked, in scope, and authorized for the entry-type permission. |
-| `L7_BOUNDARIES` | Group already-authorized rotations, revocations, and recoveries by effective boundary; from the state immediately before each boundary, check rotation and recovery predecessor preconditions without reauthorizing signers, then apply every eligible transition in the batch simultaneously. |
+| `L7_BOUNDARIES` | Group already-authorized rotations, revocations, and recoveries by effective boundary; freeze the pre-boundary heads, apply the union of durable revocations, recursively suppress dependent non-revocation records, then check unsuppressed rotation and recovery predecessor preconditions against the frozen heads and apply every remaining eligible transition simultaneously without reauthorizing signers. |
 | `L8_LINEAGE` | Build predecessor-linked epochs, reject unlinked increments and rollback, and return INDETERMINATE for competing successors at the same next epoch. |
 | `L9_RESOLUTION` | At validation_time, evaluate active precedence and current claims only after ledger state, scope, and lineage are fixed. |
 
@@ -209,6 +209,33 @@ needed to decide the precondition is `INDETERMINATE`. Revocations have no
 current-signer precondition at the boundary and therefore remain effective even
 if their issuer later rotates out, provided the revocation was validly
 authorized when issued.
+
+A revocation target is one authority-introduction record: a trust anchor,
+delegation, rotation, or recovery. `target_entry_id` must resolve uniquely to
+that record even when the record uses `anchor_id`, and `target_issuer_id` must
+equal the authority introduced by it: `issuer_id` for a trust anchor,
+`subject_issuer_id` for a delegation, `successor_issuer_id` for a rotation, or
+`replacement_issuer_id` for a recovery. A missing target or resolved mismatch
+is `INVALID`; unresolved key or dependency material is `INDETERMINATE`.
+
+An authorized revocation is a durable ledger action. Revoking its signer's
+authority later does not cancel the revocation itself. At and after the
+boundary, the targeted grant and every non-revocation record whose authorization
+depends exclusively on that grant are invalid, including records signed before
+the boundary and descendants with no independent valid chain. Revocation never
+rewinds a committed lineage head to an older record. If invalidation removes the
+only chain supporting a committed head or matching claim, the authority result
+follows `OA3_INVALID`; an unresolved alternate chain follows `OA4_UNKNOWN`.
+
+For one effective-time batch, first freeze the immediately preceding lineage
+heads. Apply all already-authorized revocations as an order-independent union,
+then recursively suppress dependent non-revocation records. Check rotation and
+recovery predecessor fields only for unsuppressed candidates and against the
+frozen pre-boundary heads; apply the remaining eligible successors
+simultaneously. Thus a same-boundary revocation of a rotation signer's grant
+suppresses that rotation, while an independently authorized recovery may still
+replace the frozen compromised head. An unresolved target, dependency, or
+precondition that could alter the decision is `INDETERMINATE`.
 
 For every entry, `issued_at` must be at or before `not_before`. For a delayed
 rotation, revocation, or recovery, `not_before` must be at or before its

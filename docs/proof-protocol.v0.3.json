@@ -23,7 +23,7 @@
       },
       {
         "id": "revocation",
-        "requirement": "A valid revocation applies at and after effective_at, including to signatures made earlier; it must be signed by a then-valid authority whose scope grants revoke for the target."
+        "requirement": "A valid revocation applies at and after effective_at, including to non-revocation records signed earlier; it must be signed by a then-valid authority whose scope grants revoke for the target, and the revocation action remains durable if its signer is later revoked."
       },
       {
         "id": "rollback",
@@ -70,7 +70,7 @@
           "target_issuer_id",
           "effective_at"
         ],
-        "rule": "A signer valid immediately before issued_at must hold revoke permission; the target is revoked when validation_time is at or after effective_at."
+        "rule": "A signer valid immediately before issued_at must hold revoke permission; target_entry_id must uniquely resolve to an authority-introduction record whose introduced issuer is target_issuer_id, and the grant is durably revoked when validation_time is at or after effective_at."
       },
       {
         "entry_type": "precedence",
@@ -188,10 +188,28 @@
     },
     "revocation_profile": {
       "authorization_time": "state_immediately_before_issued_at",
+      "dependency_invalidation": "recursive_non_revocation_records_depending_exclusively_on_revoked_authority_record",
+      "durability": "authorized_revocation_remains_effective_if_issuer_is_later_revoked",
       "earlier_signatures_grandfathered": false,
       "effective_boundary": "inclusive",
+      "revoked_committed_head": "never_rewind;OA3_INVALID_if_no_valid_chain_remains;OA4_UNKNOWN_if_an_alternate_chain_is_unresolved",
+      "same_boundary_application": "freeze_pre_boundary_heads;union_durable_revocations;recursively_suppress_dependent_non_revocation_records;check_unsuppressed_rotation_and_recovery_predecessors_against_frozen_heads;apply_remaining_transitions_simultaneously",
+      "same_boundary_unresolved_dependency": "INDETERMINATE",
       "signer_reauthorized_at_effective_boundary": false,
-      "same_boundary_application": "simultaneous_batch"
+      "target_introduced_issuer_fields": {
+        "delegation": "subject_issuer_id",
+        "recovery": "replacement_issuer_id",
+        "rotation": "successor_issuer_id",
+        "trust_anchor": "issuer_id"
+      },
+      "target_record_types": [
+        "trust_anchor",
+        "delegation",
+        "rotation",
+        "recovery"
+      ],
+      "target_resolution": "target_entry_id_uniquely_resolves_anchor_id_or_entry_id_and_target_issuer_id_matches_introduced_issuer",
+      "target_resolution_failure": "INVALID_if_missing_or_resolved_mismatch;INDETERMINATE_if_key_or_dependency_resolution_is_unresolved"
     },
     "precedence_profile": {
       "active_cycle": "INDETERMINATE",
@@ -232,7 +250,7 @@
       },
       {
         "id": "L7_BOUNDARIES",
-        "rule": "Group already-authorized rotations, revocations, and recoveries by effective boundary; from the state immediately before each boundary, check rotation and recovery predecessor preconditions without reauthorizing signers, then apply every eligible transition in the batch simultaneously."
+        "rule": "Group already-authorized rotations, revocations, and recoveries by effective boundary; freeze the pre-boundary heads, apply the union of durable revocations, recursively suppress dependent non-revocation records, then check unsuppressed rotation and recovery predecessor preconditions against the frozen heads and apply every remaining eligible transition simultaneously without reauthorizing signers."
       },
       {
         "id": "L8_LINEAGE",
@@ -614,7 +632,7 @@
     ],
     "unevaluated_stages_rule": "ordered_suffix_of_stage_order"
   },
-  "schema_version": "agent-context-proof-protocol-v0.3.4",
+  "schema_version": "agent-context-proof-protocol-v0.3.5",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",

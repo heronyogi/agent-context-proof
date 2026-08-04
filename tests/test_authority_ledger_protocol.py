@@ -433,6 +433,70 @@ def test_delayed_transitions_authorize_once_and_apply_at_the_boundary() -> None:
         assert boundary < _timestamp(entry["not_after"])
 
 
+def test_revocation_targets_and_same_boundary_order_are_fully_pinned() -> None:
+    protocol = _load(PROTOCOL_PATH)
+    profile = protocol["authority_ledger"]["revocation_profile"]
+    vectors = _load(VECTOR_PATH)
+    entries = {
+        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
+    }
+    revocation = entries["revocation"]
+    delegation = entries["delegation"]
+
+    assert profile["target_record_types"] == [
+        "trust_anchor",
+        "delegation",
+        "rotation",
+        "recovery",
+    ]
+    assert profile["target_introduced_issuer_fields"] == {
+        "delegation": "subject_issuer_id",
+        "recovery": "replacement_issuer_id",
+        "rotation": "successor_issuer_id",
+        "trust_anchor": "issuer_id",
+    }
+    assert revocation["target_entry_id"] == delegation["entry_id"]
+    assert revocation["target_issuer_id"] == delegation["subject_issuer_id"]
+    assert profile["durability"] == (
+        "authorized_revocation_remains_effective_if_issuer_is_later_revoked"
+    )
+    assert profile["dependency_invalidation"] == (
+        "recursive_non_revocation_records_depending_exclusively_on_revoked_"
+        "authority_record"
+    )
+    assert profile["same_boundary_unresolved_dependency"] == "INDETERMINATE"
+
+    revoked_grants = {"anchor:root-a-epoch-0"}
+    same_boundary_records = {
+        "revocation": {
+            "entry_type": "revocation",
+            "signer_grant": "anchor:root-a-epoch-0",
+        },
+        "rotation": {
+            "entry_type": "rotation",
+            "signer_grant": "anchor:root-a-epoch-0",
+        },
+        "recovery": {
+            "entry_type": "recovery",
+            "signer_grant": "anchor:recovery-a-epoch-0",
+        },
+    }
+    unsuppressed = {
+        name
+        for name, record in same_boundary_records.items()
+        if record["entry_type"] == "revocation"
+        or record["signer_grant"] not in revoked_grants
+    }
+    assert unsuppressed == {"revocation", "recovery"}
+
+    validation = {
+        item["id"]: item["rule"]
+        for item in protocol["authority_ledger"]["validation_order"]
+    }
+    assert "freeze the pre-boundary heads" in validation["L7_BOUNDARIES"]
+    assert "recursively suppress" in validation["L7_BOUNDARIES"]
+
+
 def test_schema_rejects_unknown_fields_and_malformed_signatures() -> None:
     vectors = _load(VECTOR_PATH)
     entry_validator, _ = _validators()
