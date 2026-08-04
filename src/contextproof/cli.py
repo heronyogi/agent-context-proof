@@ -40,6 +40,9 @@ def main() -> int:
     else:
         report = envelope.report
         print(f"{report.decision.value.upper()}: {report.target_release}")
+        print(f"contract trust: {report.contract_trust.state.value}")
+        for issue in report.contract_trust.issues:
+            print(f"- trust issue: {issue}")
         print(f"report: {report.report_digest}")
         print(f"freshness: {envelope.execution_context.freshness.value}")
         for item in report.requirements:

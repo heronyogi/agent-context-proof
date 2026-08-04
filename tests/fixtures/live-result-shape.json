@@ -1,0 +1,54 @@
+{
+  "cases": [
+    {
+      "case_id": "ready_case",
+      "repeat": 1,
+      "oracle_decision": "ready",
+      "governed": {
+        "answer": {"decision": "ready"},
+        "usage": {
+          "requests": 2,
+          "input_tokens": 100,
+          "output_tokens": 20,
+          "total_tokens": 120
+        }
+      },
+      "governed_latency_seconds": 1.0,
+      "governed_pass": true,
+      "repository_packet": {"decision": "ready"},
+      "repository_packet_usage": {
+        "requests": 1,
+        "input_tokens": 200,
+        "output_tokens": 40,
+        "total_tokens": 240
+      },
+      "repository_packet_latency_seconds": 2.0,
+      "repository_packet_pass": true
+    },
+    {
+      "case_id": "hold_case",
+      "repeat": 1,
+      "oracle_decision": "hold",
+      "governed": {
+        "answer": {"decision": "hold"},
+        "usage": {
+          "requests": 2,
+          "input_tokens": 120,
+          "output_tokens": 30,
+          "total_tokens": 150
+        }
+      },
+      "governed_latency_seconds": 3.0,
+      "governed_pass": true,
+      "repository_packet": {"decision": "hold"},
+      "repository_packet_usage": {
+        "requests": 1,
+        "input_tokens": 240,
+        "output_tokens": 60,
+        "total_tokens": 300
+      },
+      "repository_packet_latency_seconds": 4.0,
+      "repository_packet_pass": true
+    }
+  ]
+}

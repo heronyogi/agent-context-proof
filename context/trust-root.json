@@ -1,0 +1,35 @@
+{
+  "active_policy_id": "orion-1.0.0-release-readiness",
+  "authority_id": "authority:orion-governance-board",
+  "authorized_owner_ids": [
+    "owner:release-council"
+  ],
+  "contracts": [
+    {
+      "path": "identity.json",
+      "sha256": "sha256:32ef4e4428fb8828a7f4eed9567cfcae9b01864c6698897c9de3d871282d3ec1"
+    },
+    {
+      "path": "ontology.json",
+      "sha256": "sha256:7f4062db72e888d7ffd722bb4e423382d7e8126579fc18ef03cab5ca6d8fd042"
+    },
+    {
+      "path": "ownership.json",
+      "sha256": "sha256:2b7cd75d5a956ed4f690f06e85999566d414a472024b24214a08461f2e105d62"
+    },
+    {
+      "path": "policy.json",
+      "sha256": "sha256:9dff28f2a212fddd97a41096d9984a9e8ffd97457d69b3bce3e3fab1de34d430"
+    }
+  ],
+  "id": "trust-root:orion-release-governance",
+  "minimum_policy_epoch": 2,
+  "schema_version": "agent-context-trust-root-v0.2.0",
+  "target": {
+    "canonical_id": "release:orion:1.0.0",
+    "references": [
+      "Orion 1.0.0",
+      "orion-service-v1.0.0"
+    ]
+  }
+}

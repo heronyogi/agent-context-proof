@@ -1,0 +1,205 @@
+{
+  "comparator_classification": "full-packet reasoning baseline without an independent resolver, policy executor, canonical serializer, or runtime observer",
+  "fixed_case_count": 8,
+  "case_manifest_sha256": "sha256:769b00116cf4abaf692f5764dc1d33d2de8100e282369cedf2772fbd76c46a96",
+  "cases": [
+    {
+      "case_id": "complete_ready",
+      "governed_decisions": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "governed_repeat_exact_matches": 3,
+      "oracle_decision": "ready",
+      "oracle_report_digest": "sha256:5bfbf67d2cef64b3269a7d7d066465be4a0097a68e137ba1ffcaac56ca4c9b57",
+      "oracle_trust_state": "verified",
+      "repository_packet_decisions": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "repository_packet_repeat_exact_matches": 3,
+      "split": "development"
+    },
+    {
+      "case_id": "missing_security_hold",
+      "governed_decisions": [
+        "hold",
+        "hold",
+        "hold"
+      ],
+      "governed_repeat_exact_matches": 3,
+      "oracle_decision": "hold",
+      "oracle_report_digest": "sha256:d85c23521f1d03d53542fe98ce5f4c97195592d66244fb4e9032ee7a3f16e169",
+      "oracle_trust_state": "verified",
+      "repository_packet_decisions": [
+        "hold",
+        "hold",
+        "hold"
+      ],
+      "repository_packet_repeat_exact_matches": 3,
+      "split": "development"
+    },
+    {
+      "case_id": "malformed_test_indeterminate",
+      "governed_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "governed_repeat_exact_matches": 3,
+      "oracle_decision": "indeterminate",
+      "oracle_report_digest": "sha256:c42904b5af99ecb9d6bc74a8eff0f472e320a183748d5c1993457b17fba91009",
+      "oracle_trust_state": "verified",
+      "repository_packet_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "repository_packet_repeat_exact_matches": 3,
+      "split": "development"
+    },
+    {
+      "case_id": "tampered_policy_indeterminate",
+      "governed_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "governed_repeat_exact_matches": 3,
+      "oracle_decision": "indeterminate",
+      "oracle_report_digest": "sha256:c26f70603faf5cfe505f4bc6b756afce562541f923bd5365c63bfa808c1eca92",
+      "oracle_trust_state": "invalid",
+      "repository_packet_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "repository_packet_repeat_exact_matches": 3,
+      "split": "held_out"
+    },
+    {
+      "case_id": "stale_policy_indeterminate",
+      "governed_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "governed_repeat_exact_matches": 3,
+      "oracle_decision": "indeterminate",
+      "oracle_report_digest": "sha256:e6b7b856a04bb562d6d5bd8cf5f95f3aba8376f9770bc5a7f4fdc9254cbddeca",
+      "oracle_trust_state": "stale",
+      "repository_packet_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "repository_packet_repeat_exact_matches": 3,
+      "split": "held_out"
+    },
+    {
+      "case_id": "unauthorized_owner_indeterminate",
+      "governed_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "governed_repeat_exact_matches": 3,
+      "oracle_decision": "indeterminate",
+      "oracle_report_digest": "sha256:2254ce6b3c11754db4a2fc2dce12012b724c06e1d0122944c7893f1faa0c825f",
+      "oracle_trust_state": "invalid",
+      "repository_packet_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "repository_packet_repeat_exact_matches": 3,
+      "split": "held_out"
+    },
+    {
+      "case_id": "ambiguous_identity_indeterminate",
+      "governed_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "governed_repeat_exact_matches": 3,
+      "oracle_decision": "indeterminate",
+      "oracle_report_digest": "sha256:062df4022712216cf4359959780721ea1f696ee7c5cb40056bc3182ba9117128",
+      "oracle_trust_state": "ambiguous",
+      "repository_packet_decisions": [
+        "indeterminate",
+        "indeterminate",
+        "indeterminate"
+      ],
+      "repository_packet_repeat_exact_matches": 3,
+      "split": "held_out"
+    },
+    {
+      "case_id": "forged_security_hold",
+      "governed_decisions": [
+        "hold",
+        "hold",
+        "hold"
+      ],
+      "governed_repeat_exact_matches": 3,
+      "oracle_decision": "hold",
+      "oracle_report_digest": "sha256:d85c23521f1d03d53542fe98ce5f4c97195592d66244fb4e9032ee7a3f16e169",
+      "oracle_trust_state": "verified",
+      "repository_packet_decisions": [
+        "hold",
+        "hold",
+        "hold"
+      ],
+      "repository_packet_repeat_exact_matches": 3,
+      "split": "held_out"
+    }
+  ],
+  "governed_synthetic_hostile_false_ready_observations": 0,
+  "governed_metrics": {
+    "observed_exact_match_rate": 1.0,
+    "observed_exact_matches": 24,
+    "observed_false_ready": 0,
+    "observed_false_ready_rate": 0.0,
+    "observed_mean_input_tokens": 1768.62,
+    "observed_mean_latency_seconds": 6.826586,
+    "observed_mean_model_requests": 2.0,
+    "observed_mean_output_tokens": 373.42,
+    "observed_mean_total_tokens": 2142.04,
+    "observed_non_ready_run_count": 21,
+    "observed_run_count": 24
+  },
+  "governed_prompt_sha256": "sha256:3cd943131709f1e5ad39f7c610794ad39769be98966c8ec39a218a2d20c0588d",
+  "inference_note": "The three repeats reuse the same eight cases, fixtures, prompts, oracle, trust root, model, and configuration. They measure observed stochastic repeat agreement, not 24 independent Bernoulli cases. No run-level confidence interval is reported.",
+  "model": "gpt-5.6-sol",
+  "observed_on": "2026-08-03",
+  "proof_pass": true,
+  "provenance_note": "Each governed pass requires exact answer/tool/oracle agreement on evidence paths and SHA-256 digests. A digest proves byte identity at a governed coordinate, not that the evidence claim is true.",
+  "repeat_count": 3,
+  "repository_packet_metrics": {
+    "observed_exact_match_rate": 1.0,
+    "observed_exact_matches": 24,
+    "observed_false_ready": 0,
+    "observed_false_ready_rate": 0.0,
+    "observed_mean_input_tokens": 3160.0,
+    "observed_mean_latency_seconds": 12.128229,
+    "observed_mean_model_requests": 1.0,
+    "observed_mean_output_tokens": 754.42,
+    "observed_mean_total_tokens": 3914.42,
+    "observed_non_ready_run_count": 21,
+    "observed_run_count": 24
+  },
+  "repository_packet_instructions_sha256": "sha256:abe4a80141dc255de8dc2b0bf2ed4c4e137c06a285ef6e2516f40d1e13d6f4fa",
+  "result_revision": {
+    "harness_commit": "f6713dcfc976db0a7af3a2f4a0c7427451b0e715",
+    "live_schema": "agent-context-proof-eval-v0.2.2",
+    "model_calls_reexecuted": true,
+    "summary": "Fresh reference run from the SHA-pinned harness after adding run_case-shaped and saved-result aggregation regressions."
+  },
+  "run_observations_per_path": 24,
+  "schema_version": "agent-context-proof-result-v0.2.2",
+  "synthetic_hostile_contract_run_observations": 12,
+  "trust_boundary_note": "Trust state verified means internally consistent with the declared synthetic trust root. It does not establish that the root or its authority is authentic, current, uncompromised, or valid in the real world.",
+  "trust_root_sha256": "sha256:8b4586057ebe88d431a3e3c40665278893df03084ea7056e07b7b371576d2e2d"
+}

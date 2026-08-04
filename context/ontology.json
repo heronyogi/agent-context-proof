@@ -1,6 +1,21 @@
 {
   "allowed_relations": [
     {
+      "relation": "ATTESTS",
+      "source_kind": "authority",
+      "target_kind": "trust-root"
+    },
+    {
+      "relation": "AUTHORIZES_OWNER",
+      "source_kind": "trust-root",
+      "target_kind": "owner"
+    },
+    {
+      "relation": "AUTHORIZES_POLICY",
+      "source_kind": "trust-root",
+      "target_kind": "policy"
+    },
+    {
       "relation": "BLOCKED_BY",
       "source_kind": "requirement",
       "target_kind": "evidence"
@@ -27,12 +42,14 @@
     }
   ],
   "entity_kinds": [
+    "authority",
     "evidence",
     "owner",
     "policy",
     "release",
-    "requirement"
+    "requirement",
+    "trust-root"
   ],
   "id": "ontology:repository-release-context",
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

@@ -1,6 +1,7 @@
 """Governed repository context proof."""
 
 from .evaluator import (
+    ContractTrustState,
     Decision,
     Freshness,
     RequirementState,
@@ -10,6 +11,7 @@ from .evaluator import (
 
 __all__ = [
     "Decision",
+    "ContractTrustState",
     "Freshness",
     "RequirementState",
     "evaluate_context",
