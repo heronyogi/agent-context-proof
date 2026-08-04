@@ -274,6 +274,30 @@ missing requirement is `INDETERMINATE`, while a complete inventory proving
 absence with no unknown requirement is `HOLD`. A validly signed free-form claim
 without a policy mapping is semantically unjudgeable, not negative evidence.
 
+### Provenance requirements
+
+Provenance is route-specific but never optional for a stage that was reached.
+The rules below are normative and mirrored in the machine protocol.
+
+| Rule ID | Normative rule |
+| --- | --- |
+| `PV1_REACHED_STAGES` | Record exact paths, record IDs, and digests for every evaluation stage reached; list every stage skipped by an earlier terminal classification in unevaluated_stages. |
+| `PV2_AUTHORITY_CHAIN` | Each decisive authority claim records issuer_id, claim_entry_id, and ordered records from its trust anchor or delegation through the claim, with the RFC 8785 payload SHA-256 for every record. |
+| `PV3_CONFLICT_COVERAGE` | AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid. |
+| `PV4_SHORT_CIRCUIT` | When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance. |
+
+The authority bundle itself is recorded by path and byte digest. Within each
+authority chain, `records` are ordered from the trust anchor or delegation to
+the decisive claim. Every record carries its ID and SHA-256 of the UTF-8 RFC
+8785 JCS payload with the top-level signature removed when present. Contract and
+evidence provenance records use exact permitted-input paths and byte digests.
+All paths are relative POSIX paths without dot segments and must appear in the
+permitted-input manifest. Evaluation stage order is authority, contract, then
+evidence; `unevaluated_stages` must be an ordered suffix of that sequence. The
+governed output must match all ordered values and digests exactly. The machine
+contract pins the required fields for the provenance object, authority-chain
+items, authority records, and file records.
+
 ## Planned case families
 
 The labels below define required behavior, not checked-in v0.3 fixtures. Blind

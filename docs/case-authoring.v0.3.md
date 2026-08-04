@@ -90,7 +90,9 @@ Withheld until every evaluated path's output digest is committed:
 - expected mechanism status;
 - expected authority status;
 - expected trust and failure reasons;
-- exact authority, contract, and evidence provenance paths and digests;
+- exact provenance paths, record IDs, and digests for every stage reached, plus
+  an explicit list of stages not evaluated because an earlier classification
+  terminated evaluation;
 - a short deterministic rationale; and
 - any adjudication notes needed after scoring.
 
@@ -128,13 +130,52 @@ The matching sealed record adds:
       "V4_AUTHORITY_CONFLICT"
     ],
     "reason_codes": ["VALID_ISSUER_CONFLICT"],
-    "provenance": []
+    "provenance": {
+      "authority_bundle_path": "authority/ledger.json",
+      "authority_bundle_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "authority_chains": [
+        {
+          "issuer_id": "authority:release-east",
+          "claim_entry_id": "entry:claim-owner-east",
+          "records": [
+            {
+              "record_id": "anchor:release-east",
+              "payload_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            {
+              "record_id": "entry:claim-owner-east",
+              "payload_sha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+            }
+          ]
+        },
+        {
+          "issuer_id": "authority:release-west",
+          "claim_entry_id": "entry:claim-owner-west",
+          "records": [
+            {
+              "record_id": "anchor:release-west",
+              "payload_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+            },
+            {
+              "record_id": "entry:claim-owner-west",
+              "payload_sha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+            }
+          ]
+        }
+      ],
+      "contract_records": [],
+      "evidence_records": [],
+      "unevaluated_stages": ["contract", "evidence"]
+    }
   },
   "rationale": "Two current equal-precedence issuers authorize incompatible owners."
 }
 ```
 
 The example values illustrate shape only and are not a required blind case.
+Contract and evidence provenance are empty because `AUTHORITY_CONFLICT`
+terminates evaluation before those stages, not because conflict lacks decisive
+provenance. Every undominated conflicting authority claim has its own chain.
 
 ## Oracle labeling and disagreement
 

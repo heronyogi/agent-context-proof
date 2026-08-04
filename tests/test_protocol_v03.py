@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 import json
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_JSON = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.json"
@@ -17,6 +17,15 @@ def _protocol() -> dict[str, object]:
 
 def _collapsed(text: str) -> str:
     return " ".join(text.split())
+
+
+def _json_blocks(path: Path) -> list[dict[str, object]]:
+    blocks = re.findall(
+        r"```json\n(.*?)\n```",
+        path.read_text(encoding="utf-8"),
+        flags=re.DOTALL,
+    )
+    return [json.loads(block) for block in blocks]
 
 
 def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
@@ -49,7 +58,7 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.2"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.3"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"
@@ -275,6 +284,66 @@ def test_oracle_tables_mirror_machine_contract_and_valid_outputs() -> None:
         "UNSATISFIED": valid["V2_HOLD"]["disposition"],
         "SATISFIED": valid["V1_READY"]["disposition"],
     }
+
+
+def test_conflict_example_has_exact_provenance_for_every_competing_chain(
+) -> None:
+    protocol = _protocol()
+    provenance_contract = protocol["provenance_contract"]
+    rows = _markdown_table(PROTOCOL_MD, "### Provenance requirements")
+    markdown_rules = [
+        {"id": row["Rule ID"], "rule": row["Normative rule"]} for row in rows
+    ]
+    assert markdown_rules == provenance_contract["ordered_rules"]
+    assert provenance_contract["conflict_minimum_authority_chains"] == 2
+    assert protocol["pass_conditions"]["exact_provenance_required"] is True
+    assert provenance_contract["stage_order"] == [
+        "authority",
+        "contract",
+        "evidence",
+    ]
+    assert provenance_contract["unevaluated_stages_rule"] == (
+        "ordered_suffix_of_stage_order"
+    )
+
+    oracle_example = next(
+        block for block in _json_blocks(AUTHORING_MD) if "oracle" in block
+    )
+    oracle = oracle_example["oracle"]
+    assert oracle["disposition"] == "AUTHORITY_CONFLICT"
+    provenance = oracle["provenance"]
+    assert set(provenance) == set(provenance_contract["provenance_required_fields"])
+    chains = provenance["authority_chains"]
+    assert len(chains) >= provenance_contract[
+        "conflict_minimum_authority_chains"
+    ]
+    assert provenance["contract_records"] == []
+    assert provenance["evidence_records"] == []
+    assert provenance["unevaluated_stages"] == ["contract", "evidence"]
+    stage_order = provenance_contract["stage_order"]
+    first_skipped = stage_order.index(provenance["unevaluated_stages"][0])
+    assert provenance["unevaluated_stages"] == stage_order[first_skipped:]
+
+    digest_pattern = re.compile(r"^sha256:[0-9a-f]{64}$")
+    assert digest_pattern.fullmatch(provenance["authority_bundle_sha256"])
+    bundle_path = PurePosixPath(provenance["authority_bundle_path"])
+    assert not bundle_path.is_absolute()
+    assert not {".", ".."} & set(bundle_path.parts)
+    claim_ids = set()
+    for chain in chains:
+        assert set(chain) == set(
+            provenance_contract["authority_chain_required_fields"]
+        )
+        records = chain["records"]
+        assert records
+        assert records[-1]["record_id"] == chain["claim_entry_id"]
+        assert chain["claim_entry_id"] not in claim_ids
+        claim_ids.add(chain["claim_entry_id"])
+        for record in records:
+            assert set(record) == set(
+                provenance_contract["authority_record_required_fields"]
+            )
+            assert digest_pattern.fullmatch(record["payload_sha256"])
 
 
 def test_scoring_population_exactly_mirrors_and_constrains_pass_rules() -> None:

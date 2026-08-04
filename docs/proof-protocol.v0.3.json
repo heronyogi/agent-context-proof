@@ -534,7 +534,59 @@
     "post_reveal_exclusions_allowed": false,
     "proof_gating_path": "governed"
   },
-  "schema_version": "agent-context-proof-protocol-v0.3.2",
+  "provenance_contract": {
+    "authority_chain_required_fields": [
+      "issuer_id",
+      "claim_entry_id",
+      "records"
+    ],
+    "authority_record_required_fields": [
+      "record_id",
+      "payload_sha256"
+    ],
+    "authority_record_digest": "sha256_of_utf8_rfc8785_jcs_record_with_top_level_signature_removed_when_present",
+    "conflict_minimum_authority_chains": 2,
+    "exact_match": "ordered_paths_record_ids_and_sha256_digests",
+    "file_record_required_fields": [
+      "path",
+      "sha256"
+    ],
+    "ordered_rules": [
+      {
+        "id": "PV1_REACHED_STAGES",
+        "rule": "Record exact paths, record IDs, and digests for every evaluation stage reached; list every stage skipped by an earlier terminal classification in unevaluated_stages."
+      },
+      {
+        "id": "PV2_AUTHORITY_CHAIN",
+        "rule": "Each decisive authority claim records issuer_id, claim_entry_id, and ordered records from its trust anchor or delegation through the claim, with the RFC 8785 payload SHA-256 for every record."
+      },
+      {
+        "id": "PV3_CONFLICT_COVERAGE",
+        "rule": "AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid."
+      },
+      {
+        "id": "PV4_SHORT_CIRCUIT",
+        "rule": "When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance."
+      }
+    ],
+    "path_format": "relative_posix_without_dot_segments_and_present_in_permitted_inputs_manifest",
+    "provenance_required_fields": [
+      "authority_bundle_path",
+      "authority_bundle_sha256",
+      "authority_chains",
+      "contract_records",
+      "evidence_records",
+      "unevaluated_stages"
+    ],
+    "sha256_format": "sha256:<64_lowercase_hex>",
+    "stage_order": [
+      "authority",
+      "contract",
+      "evidence"
+    ],
+    "unevaluated_stages_rule": "ordered_suffix_of_stage_order"
+  },
+  "schema_version": "agent-context-proof-protocol-v0.3.3",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",
