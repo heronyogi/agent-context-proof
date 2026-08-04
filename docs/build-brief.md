@@ -1,4 +1,4 @@
-# Standalone build brief: v0.2 hostile governance
+# Standalone build brief: v0.2 synthetic hostile-contract evaluation
 
 ## Confirmed source findings
 
@@ -21,12 +21,14 @@
 - Treat that trust root as the experiment's external anchor. Production would
   need to protect, sign, or retrieve the anchor from a separately trusted system.
 - Fail closed to `INDETERMINATE` before evidence evaluation when contract trust
-  is not `verified`.
+  is not internally `verified` against the declared root. This state does not
+  establish external authority validity.
 - Retain one Agents SDK agent and one read-only function tool. The model explains
   a typed result; it never computes or overrides the governed decision.
-- Compare against a full repository packet containing the complete inventory,
+- Compare against a full-packet reasoning baseline containing the complete inventory,
   every text file, and raw file digests, with explicit instructions to apply the
-  same governance rules through model reasoning.
+  same governance rules through model reasoning. It is not an independently
+  implemented retrieval-plus-rules executor.
 
 ## Application contract
 
@@ -49,6 +51,9 @@
 - Missing governed evidence remains `HOLD`; malformed evidence remains
   `INDETERMINATE`; plausible evidence at an ungoverned path has no effect.
 - The stronger comparator's accuracy, false-ready rate, latency, requests, and
-  token use are reported without requiring it to lose.
+  token use are reported as bounded observations without requiring it to lose or
+  generalizing an architectural advantage.
+- Repeats are reported as per-case stochastic agreement, not independent cases;
+  no run-level confidence interval is calculated.
 - The checked-in compact result is bound to the exact case-manifest and trust-root
   digests.

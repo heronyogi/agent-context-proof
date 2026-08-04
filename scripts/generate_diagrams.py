@@ -112,9 +112,9 @@ def arrow(
 
 def interactions() -> None:
     image, draw = canvas(
-        "Governed context: ownership of truth",
-        "The model translates intent and explains results; deterministic code "
-        "owns facts and decisions.",
+        "Governed context: declared inputs and deterministic execution",
+        "The declared root anchors this mechanism; it does not prove real-world "
+        "authority.",
     )
     box(
         draw,
@@ -126,13 +126,13 @@ def interactions() -> None:
         draw,
         (485, 220, 830, 500),
         "One agent",
-        ["Resolves intent", "Calls exactly one tool", "Returns typed output"],
+        ["Resolves intent", "Calls one repository tool", "Returns typed output"],
     )
     box(
         draw,
         (945, 165, 1515, 330),
-        "External trust root",
-        ["Authority + owner allowlist", "Contract digests + policy epoch"],
+        "Declared synthetic root",
+        ["Claimed authority + owners", "Contract digests + policy epoch"],
         fill=AMBER_PALE,
         outline=AMBER,
     )
@@ -142,7 +142,7 @@ def interactions() -> None:
         "Context evaluator",
         [
             "Verify contracts first",
-            "Identity + authorization",
+            "Declared identity + grants",
             "Policy + typed ontology",
             "Exact evidence checks",
             "Fail closed before evidence",
@@ -153,8 +153,8 @@ def interactions() -> None:
     box(
         draw,
         (400, 670, 850, 835),
-        "Proof output",
-        ["Exact decision + digest", "Trust state + issues", "Tool count = 1"],
+        "Deterministic output",
+        ["Exact serialization + digest", "Trust state + issues", "Tool count = 1"],
         fill=AMBER_PALE,
         outline=AMBER,
     )
@@ -168,15 +168,15 @@ def interactions() -> None:
 
 def sequence() -> None:
     image, draw = canvas(
-        "Proof sequence",
-        "Same model. Fresh fixture per case. Expected labels withheld from both "
-        "prompts.",
+        "Matched evaluation sequence",
+        "Eight fixed cases repeated three times. Expected labels withheld from "
+        "both prompts.",
     )
     columns = [
         (95, "Case"),
         (450, "Governed"),
         (850, "Oracle"),
-        (1240, "Full packet"),
+        (1240, "Packet baseline"),
     ]
     for x, label in columns:
         draw.text((x, 180), label, fill=INK, font=LABEL)
@@ -193,8 +193,8 @@ def sequence() -> None:
     draw.rounded_rectangle((70, 810, 1530, 865), radius=16, fill=GREEN_PALE)
     draw.text(
         (110, 826),
-        "Pass: governed = oracle on every run, one tool call, exact digest, and "
-        "zero false-ready hostile cases.",
+        "Observed: governed = oracle in all 3 repeats of 8 fixed cases; one tool "
+        "call and zero false READY.",
         fill=GREEN,
         font=BODY,
     )

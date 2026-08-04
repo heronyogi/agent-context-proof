@@ -64,6 +64,8 @@ class Freshness(StrEnum):
 
 
 class ContractTrustState(StrEnum):
+    """Internal consistency with the declared root, not external authority validity."""
+
     VERIFIED = "verified"
     INVALID = "invalid"
     STALE = "stale"

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from contextproof.agent import DEFAULT_PROMPT_PATH
 from contextproof.cli import discover_project_root
 from contextproof.evaluator import (
     ContractTrustState,
@@ -16,7 +17,11 @@ from contextproof.evaluator import (
     load_identity,
     resolve_release_identity,
 )
-from evals.run_live import build_case_repository
+from evals.run_live import (
+    PACKET_BASELINE_INSTRUCTIONS,
+    _text_digest,
+    build_case_repository,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = PROJECT_ROOT / "context"
@@ -187,13 +192,28 @@ def test_v02_proof_result_is_bound_to_current_cases_and_trust_root() -> None:
     trust_digest = "sha256:" + hashlib.sha256(
         (CONTRACT_ROOT / "trust-root.json").read_bytes()
     ).hexdigest()
-    assert result["schema_version"] == "agent-context-proof-result-v0.2.0"
+    assert result["schema_version"] == "agent-context-proof-result-v0.2.1"
     assert result["case_manifest_sha256"] == case_digest
     assert result["trust_root_sha256"] == trust_digest
+    prompt_digest = "sha256:" + hashlib.sha256(
+        DEFAULT_PROMPT_PATH.read_bytes()
+    ).hexdigest()
+    assert result["governed_prompt_sha256"] == prompt_digest
+    assert result["repository_packet_instructions_sha256"] == _text_digest(
+        PACKET_BASELINE_INSTRUCTIONS
+    )
     assert result["proof_pass"] is True
-    assert result["governed_metrics"]["exact_matches"] == 24
-    assert result["governed_hostile_false_ready"] == 0
-    assert all(item["governed_passes"] == 3 for item in result["cases"])
+    assert result["governed_metrics"]["observed_exact_matches"] == 24
+    assert result["governed_synthetic_hostile_false_ready_observations"] == 0
+    assert all(
+        item["governed_repeat_exact_matches"] == 3 for item in result["cases"]
+    )
+    assert all(len(set(item["governed_decisions"])) == 1 for item in result["cases"])
+    metric_keys = {
+        *result["governed_metrics"],
+        *result["repository_packet_metrics"],
+    }
+    assert not any("ci95" in key or "wilson" in key for key in metric_keys)
 
 
 def test_cli_discovers_checkout_from_nested_directory() -> None:

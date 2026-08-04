@@ -8,41 +8,46 @@ source, production data, or internal names are included.
 
 ![Governed context architecture](docs/agent-interactions.png)
 
-## What v0.2 proves
+## What v0.2 tests
 
 The model does not own release facts or authorization. One deterministic,
 read-only evaluator:
 
 1. verifies an external trust-root manifest;
 2. checks every identity, ontology, ownership, and policy contract by SHA-256;
-3. enforces the issuing authority, owner allowlist, active policy, minimum policy
-   epoch, and singular release identity;
-4. evaluates only evidence paths named by verified policy; and
+3. checks the declared issuing authority, owner allowlist, active policy, minimum
+   policy epoch, and singular release identity;
+4. evaluates only evidence paths named by a policy that is internally consistent
+   with the declared synthetic root; and
 5. returns `READY`, `HOLD`, or `INDETERMINATE` with an exact report digest.
 
 The Agents SDK model calls that evaluator once and explains its typed result. If
 contract trust is invalid, stale, ambiguous, or missing, evaluation stops before
 evidence checks and cannot return `READY`.
 
-This closes the main limitation in v0.1, which assumed the context contracts were
-trustworthy. It does not eliminate the trust problem entirely: the trust-root
-file is this experiment's external anchor. A production deployment must protect,
-sign, or retrieve that anchor independently.
+This exercises the main limitation in v0.1, which assumed the context contracts
+were trustworthy. It does not validate authority in the real world: the
+trust-root file is this experiment's declared external anchor. A production
+deployment must establish its authenticity, currency, authorization, rollback
+protection, and compromise response independently.
 
 ## A stronger comparison
 
 v0.1 compared governed context against seven lexical excerpts and observed 3/3
 versus 1/3 exact matches. That demonstrated a context-availability advantage but
-was not a strong retrieval-plus-rules control.
+was not a strong rules-capable control.
 
 v0.2 gives the same model a complete repository packet containing the full file
 inventory, every UTF-8 file, raw digests, and explicit governance instructions.
-That control has enough information to reason correctly; it lacks only the
-deterministic executor, canonical report serializer, and runtime observer.
+This is a **full-packet reasoning baseline**, not a complete
+retrieval-plus-rules implementation. It has enough information to reason
+correctly, but no independently implemented resolver, policy executor, canonical
+report serializer, or runtime observer.
 
 The v0.2 pass condition does not require the comparator to lose. It requires the
-governed path to match every oracle result and digest with exactly one tool call,
-and to produce zero false-ready decisions under hostile governance.
+governed path to match every oracle result and digest with exactly one repository
+tool call, and to produce zero false-ready decisions in the synthetic
+hostile-contract cases.
 
 ## Reproduce the deterministic proof
 
@@ -89,25 +94,37 @@ model available to your project.
 
 On 2026-08-03, three repeats produced:
 
-| Path | Exact matches | False ready | Mean requests | Mean tokens | Mean latency |
+| Path | Observed exact matches | False ready | Mean model API requests | Mean tokens | Mean latency |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Governed context | 24 / 24 | 0 | 2.0 | 1,848.88 | 7.00 s |
 | Full repository packet | 24 / 24 | 0 | 1.0 | 3,605.88 | 8.45 s |
 
-All 12 governed runs with corrupted, stale, unauthorized, or ambiguous contracts
-returned `INDETERMINATE`; none returned `READY`. The full-packet comparator also
-scored perfectly, so this iteration claims equal observed accuracy—not an
-accuracy win. Governed context used about 49% fewer tokens and produced an exact,
-model-independent authorization artifact.
+All 12 governed run observations with corrupted, stale, unauthorized, or
+ambiguous contracts returned `INDETERMINATE`; none returned `READY`. The
+full-packet reasoning baseline also matched every oracle result, so this
+iteration claims equal observed agreement—not an accuracy advantage.
+
+The governed path made exactly one repository tool call per case. Its mean of two
+model API requests reflects the usual tool-calling sequence: one request emits
+the tool call and a second request produces the typed answer. The token and
+latency figures are observations for this model, prompt, API configuration, and
+implementation; they are not general architectural efficiency claims.
+
+The three repeats reused the same eight fixtures, prompts, oracle, trust root,
+model, and configuration. They measure observed stochastic repeat agreement,
+not 24 independent cases. No run-level confidence interval is reported. The
+compact v0.2.1 record re-aggregates the original raw outcomes without repeating
+the model calls; this correction is recorded inside the artifact.
 
 The compact record is
 [`docs/proof-result.v0.2.json`](docs/proof-result.v0.2.json). It is bound to the
-exact SHA-256 digests of the case manifest and trust root. The earlier result is
-retained at [`docs/proof-result.v0.1.json`](docs/proof-result.v0.1.json).
+exact SHA-256 digests of the case manifest, trust root, governed prompt, and
+full-packet instructions. The earlier result is retained at
+[`docs/proof-result.v0.1.json`](docs/proof-result.v0.1.json).
 
 ![Matched evaluation sequence](docs/agent-sequence.png)
 
-## Hostile case matrix
+## Synthetic hostile-contract case matrix
 
 | Case | Expected result |
 | --- | --- |
@@ -130,15 +147,17 @@ this project, however, so they are not an independently constructed blind set.
 context/                 external trust root plus governed contracts
 demo/repository/         synthetic repository evidence and distractors
 src/contextproof/        deterministic evaluator and one-tool agent
-tests/                   offline invariants and hostile-governance tests
+tests/                   offline invariants and hostile-contract tests
 evals/                   fixtures and live matched-path comparison
 docs/                    protocol, prompts, diagrams, and compact results
 ```
 
 ## Decision semantics
 
-- `READY`: contract trust is verified and every policy requirement is satisfied.
-- `HOLD`: contracts are verified, but governed evidence is missing or conflicts.
+- `READY`: contracts are internally consistent with the declared root and every
+  policy requirement is satisfied.
+- `HOLD`: contracts are internally consistent with the declared root, but
+  governed evidence is missing or conflicts.
 - `INDETERMINATE`: contracts are untrusted, or governed evidence cannot be parsed
   or safely evaluated.
 
@@ -146,8 +165,12 @@ Runtime Git and GitHub Actions coordinates live in a separate freshness envelope
 so a dirty checkout does not alter the stable policy report digest. The agent has
 no write, shell, browser, or repository-network tool.
 
+In code and result records, trust state `verified` means only that the contracts
+are internally consistent with the declared synthetic root. It is not proof that
+the root or authority is authentic, current, authorized, or uncompromised.
+
 See [`docs/proof-protocol.md`](docs/proof-protocol.md) for the falsifiable claims,
-controls, confidence intervals, limitations, and next production step.
+controls, raw repeat-agreement reporting, limitations, and next production step.
 
 ## References
 

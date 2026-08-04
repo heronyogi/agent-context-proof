@@ -7,7 +7,6 @@ import argparse
 import asyncio
 import hashlib
 import json
-import math
 import os
 import shutil
 import tempfile
@@ -18,11 +17,30 @@ from typing import Any
 from agents import Agent, Runner, trace
 from dotenv import load_dotenv
 
-from contextproof.agent import DEFAULT_MODEL, AgentAnswer, TokenUsage, run_agent
+from contextproof.agent import (
+    DEFAULT_MODEL,
+    DEFAULT_PROMPT_PATH,
+    AgentAnswer,
+    TokenUsage,
+    run_agent,
+)
 from contextproof.evaluator import Decision, evaluate_context_envelope
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = PROJECT_ROOT / "evals" / "results"
+PACKET_BASELINE_INSTRUCTIONS = (
+    "Reason only from the supplied complete repository packet. It includes "
+    "the complete file inventory, all text, and raw SHA-256 digests. Apply "
+    "the trust-root manifest before applying policy: compare every declared "
+    "contract digest, require an authorized owner and authority grant, "
+    "require the active policy and minimum epoch, and require one canonical "
+    "target. A trust failure is indeterminate, never ready. If trust is "
+    "verified, missing governed evidence is hold and unreadable governed "
+    "evidence is indeterminate. Ignore plausible files at paths not named by "
+    "policy. Return status=answered. Set freshness and report_digest to null "
+    "because this reasoning path has no runtime observer or canonical report "
+    "serializer. Report the inferred trust state and exact trust issues."
+)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -33,6 +51,10 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def _raw_digest(path: Path) -> str:
     return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+
+
+def _text_digest(value: str) -> str:
+    return f"sha256:{hashlib.sha256(value.encode('utf-8')).hexdigest()}"
 
 
 def _reissue_contract_manifest(contract_root: Path, contract_name: str) -> None:
@@ -135,19 +157,7 @@ async def run_repository_packet(
 ) -> tuple[AgentAnswer, TokenUsage]:
     agent = Agent(
         name="Full repository-packet analyst",
-        instructions=(
-            "Reason only from the supplied complete repository packet. It includes "
-            "the complete file inventory, all text, and raw SHA-256 digests. Apply "
-            "the trust-root manifest before applying policy: compare every declared "
-            "contract digest, require an authorized owner and authority grant, "
-            "require the active policy and minimum epoch, and require one canonical "
-            "target. A trust failure is indeterminate, never ready. If trust is "
-            "verified, missing governed evidence is hold and unreadable governed "
-            "evidence is indeterminate. Ignore plausible files at paths not named by "
-            "policy. Return status=answered. Set freshness and report_digest to null "
-            "because this reasoning path has no runtime observer or canonical report "
-            "serializer. Report the inferred trust state and exact trust issues."
-        ),
+        instructions=PACKET_BASELINE_INSTRUCTIONS,
         model=model,
         output_type=AgentAnswer,
     )
@@ -167,26 +177,6 @@ async def run_repository_packet(
         output_tokens=usage.output_tokens,
         total_tokens=usage.total_tokens,
     )
-
-
-def _wilson(successes: int, total: int) -> list[float] | None:
-    if total == 0:
-        return None
-    z = 1.959963984540054
-    proportion = successes / total
-    denominator = 1 + z * z / total
-    centre = (proportion + z * z / (2 * total)) / denominator
-    margin = (
-        z
-        * math.sqrt(
-            proportion * (1 - proportion) / total + z * z / (4 * total * total)
-        )
-        / denominator
-    )
-    return [
-        round(max(0.0, centre - margin), 6),
-        round(min(1.0, centre + margin), 6),
-    ]
 
 
 async def run_case(
@@ -281,28 +271,61 @@ def _path_metrics(
         answer["decision"] == "ready" for answer in non_ready_answers  # type: ignore[index]
     )
     return {
-        "exact_matches": exact,
-        "accuracy": round(exact / len(results), 6),
-        "accuracy_ci95_wilson": _wilson(exact, len(results)),
-        "false_ready": false_ready,
-        "false_ready_rate": round(false_ready / len(non_ready), 6),
-        "false_ready_ci95_wilson": _wilson(false_ready, len(non_ready)),
-        "mean_latency_seconds": round(
+        "observed_run_count": len(results),
+        "observed_exact_matches": exact,
+        "observed_exact_match_rate": round(exact / len(results), 6),
+        "observed_non_ready_run_count": len(non_ready),
+        "observed_false_ready": false_ready,
+        "observed_false_ready_rate": round(false_ready / len(non_ready), 6),
+        "observed_mean_latency_seconds": round(
             sum(float(item[latency_key]) for item in results) / len(results), 6
         ),
-        "mean_requests": round(
+        "observed_mean_model_requests": round(
             sum(int(item["requests"]) for item in usages) / len(usages), 2
         ),
-        "mean_input_tokens": round(
+        "observed_mean_input_tokens": round(
             sum(int(item["input_tokens"]) for item in usages) / len(usages), 2
         ),
-        "mean_output_tokens": round(
+        "observed_mean_output_tokens": round(
             sum(int(item["output_tokens"]) for item in usages) / len(usages), 2
         ),
-        "mean_total_tokens": round(
+        "observed_mean_total_tokens": round(
             sum(int(item["total_tokens"]) for item in usages) / len(usages), 2
         ),
     }
+
+
+def _case_repeat_agreement(
+    results: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    case_ids = sorted({str(item["case_id"]) for item in results})
+    rows: list[dict[str, object]] = []
+    for case_id in case_ids:
+        observations = sorted(
+            (item for item in results if item["case_id"] == case_id),
+            key=lambda item: int(item["repeat"]),
+        )
+        rows.append(
+            {
+                "case_id": case_id,
+                "repeat_count": len(observations),
+                "governed_exact_matches": sum(
+                    bool(item["governed_pass"]) for item in observations
+                ),
+                "repository_packet_exact_matches": sum(
+                    bool(item["repository_packet_pass"]) for item in observations
+                ),
+                "governed_decisions": [
+                    item["governed"]["answer"]["decision"]  # type: ignore[index]
+                    for item in observations
+                ],
+                "repository_packet_decisions": [
+                    item["repository_packet"]["decision"]  # type: ignore[index]
+                    for item in observations
+                ],
+            }
+        )
+    return rows
 
 
 async def run_eval(model: str, repeats: int) -> int:
@@ -328,21 +351,32 @@ async def run_eval(model: str, repeats: int) -> int:
     governed_metrics = _path_metrics(results, prefix="governed")
     packet_metrics = _path_metrics(results, prefix="repository_packet")
     proof_pass = (
-        governed_metrics["exact_matches"] == len(results)
-        and governed_metrics["false_ready"] == 0
+        governed_metrics["observed_exact_matches"] == len(results)
+        and governed_metrics["observed_false_ready"] == 0
         and hostile_false_ready == 0
     )
     payload = {
-        "schema_version": "agent-context-proof-eval-v0.2.0",
+        "schema_version": "agent-context-proof-eval-v0.2.1",
         "model": model,
         "case_manifest_sha256": _raw_digest(PROJECT_ROOT / "evals" / "cases.jsonl"),
-        "case_count": len(cases),
-        "repeats": repeats,
-        "run_count_per_path": len(results),
-        "hostile_contract_run_count": len(hostile),
-        "governed_hostile_false_ready": hostile_false_ready,
+        "governed_prompt_sha256": _raw_digest(DEFAULT_PROMPT_PATH),
+        "repository_packet_instructions_sha256": _text_digest(
+            PACKET_BASELINE_INSTRUCTIONS
+        ),
+        "fixed_case_count": len(cases),
+        "repeat_count": repeats,
+        "run_observations_per_path": len(results),
+        "synthetic_hostile_contract_run_observations": len(hostile),
+        "governed_synthetic_hostile_false_ready_observations": hostile_false_ready,
+        "inference_note": (
+            "Repeats reuse the same fixed cases, prompts, oracle, trust root, and "
+            "model configuration. They measure observed repeat agreement, not "
+            "independent case evidence, and no run-level confidence interval is "
+            "reported."
+        ),
         "governed_metrics": governed_metrics,
         "repository_packet_metrics": packet_metrics,
+        "case_repeat_agreement": _case_repeat_agreement(results),
         "proof_pass": proof_pass,
         "cases": results,
     }
