@@ -219,6 +219,9 @@ def test_v02_proof_result_is_bound_to_current_cases_and_trust_root(
         *result["repository_packet_metrics"],
     }
     assert not any("ci95" in key or "wilson" in key for key in metric_keys)
+    serialized_result = json.dumps(result).lower()
+    assert "wilson" not in serialized_result
+    assert "ci95" not in serialized_result
     assert result["result_revision"]["model_calls_reexecuted"] is True
 
     manifest = {

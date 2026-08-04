@@ -314,7 +314,9 @@ def _path_metrics(
         "observed_exact_match_rate": round(exact / len(results), 6),
         "observed_non_ready_run_count": len(non_ready),
         "observed_false_ready": false_ready,
-        "observed_false_ready_rate": round(false_ready / len(non_ready), 6),
+        "observed_false_ready_rate": (
+            round(false_ready / len(non_ready), 6) if non_ready else None
+        ),
         "observed_mean_latency_seconds": round(
             sum(float(item[latency_key]) for item in results) / len(results), 6
         ),

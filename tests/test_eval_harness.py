@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
 import pytest
 
+import evals.run_live as live_harness
 from contextproof.agent import (
     AgentAnswer,
     AgentRunRecord,
@@ -12,7 +14,7 @@ from contextproof.agent import (
     TokenUsage,
     ToolCallAudit,
 )
-from contextproof.evaluator import Decision, evaluate_context
+from contextproof.evaluator import ContractTrustState, Decision, evaluate_context
 from evals.run_live import (
     _path_metrics,
     build_case_repository,
@@ -83,6 +85,98 @@ def test_metrics_aggregate_nested_usage_from_saved_result_shape() -> None:
     assert governed["observed_mean_total_tokens"] == 135.0
     assert packet["observed_mean_model_requests"] == 1.0
     assert packet["observed_mean_total_tokens"] == 270.0
+
+
+def test_metrics_mark_false_ready_rate_not_applicable_for_all_ready_subset() -> None:
+    fixture = json.loads(
+        (PROJECT_ROOT / "tests" / "fixtures" / "live-result-shape.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    ready_only = [
+        item for item in fixture["cases"] if item["oracle_decision"] == "ready"
+    ]
+
+    governed = _path_metrics(ready_only, prefix="governed")
+
+    assert governed["observed_non_ready_run_count"] == 0
+    assert governed["observed_false_ready"] == 0
+    assert governed["observed_false_ready_rate"] is None
+
+
+def test_run_case_result_shape_aggregates_governed_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_run_agent(
+        question: str,
+        *,
+        repository_root: str | Path,
+        contract_root: str | Path,
+        model: str,
+    ) -> AgentRunRecord:
+        del question, contract_root, model
+        root = Path(repository_root)
+        oracle = evaluate_context(root, contract_root=root / "context")
+        return _matching_record(oracle.decision, root)
+
+    async def fake_run_repository_packet(
+        question: str,
+        packet: dict[str, object],
+        *,
+        model: str,
+    ) -> tuple[AgentAnswer, TokenUsage]:
+        del question, packet, model
+        return (
+            AgentAnswer(
+                status=AnswerStatus.ANSWERED,
+                target_release="release:orion:1.0.0",
+                decision=Decision.HOLD,
+                summary="simulated packet answer",
+                owner_id="owner:orion-release-team",
+                trust_state=ContractTrustState.VERIFIED,
+                trust_issues=[],
+                freshness=None,
+                report_digest=None,
+                evidence_paths=[],
+                evidence_digests=[],
+                blocking_requirements=[],
+            ),
+            TokenUsage(
+                requests=1,
+                input_tokens=20,
+                output_tokens=5,
+                total_tokens=25,
+            ),
+        )
+
+    monkeypatch.setattr(live_harness, "run_agent", fake_run_agent)
+    monkeypatch.setattr(
+        live_harness,
+        "run_repository_packet",
+        fake_run_repository_packet,
+    )
+    case = {
+        "case_id": "missing_security_hold",
+        "split": "development",
+        "fixture": "missing_security",
+        "question": "Is Orion 1.0.0 ready to release, and why?",
+        "expected_decision": "hold",
+        "expected_trust_state": "verified",
+    }
+
+    result = asyncio.run(live_harness.run_case(case, model="simulated-model", repeat=1))
+
+    assert "usage" not in result
+    assert result["governed"]["usage"] == {  # type: ignore[index]
+        "requests": 2,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+    }
+    metrics = _path_metrics([result], prefix="governed")
+    assert metrics["observed_exact_matches"] == 1
+    assert metrics["observed_mean_model_requests"] == 2.0
+    assert metrics["observed_mean_total_tokens"] == 0.0
 
 
 @pytest.mark.parametrize(
