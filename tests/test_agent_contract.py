@@ -9,7 +9,7 @@ from contextproof.agent import (
     build_agent,
     evaluate_release_reference,
 )
-from contextproof.evaluator import Decision
+from contextproof.evaluator import ContractTrustState, Decision
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -39,6 +39,8 @@ def test_tool_returns_exact_governed_decision(complete_repository: Path) -> None
     payload = evaluate_release_reference(runtime, "Orion 1.0.0")
     assert payload.status == AnswerStatus.ANSWERED
     assert payload.decision == Decision.READY
+    assert payload.trust_state == ContractTrustState.VERIFIED
+    assert payload.trust_issues == []
     assert len(runtime.tool_calls) == 1
     assert runtime.tool_calls[0].report_digest == payload.report_digest
 
@@ -52,3 +54,22 @@ def test_tool_refuses_unsupported_release(complete_repository: Path) -> None:
     assert payload.status == AnswerStatus.UNSUPPORTED
     assert payload.decision is None
     assert len(runtime.tool_calls) == 1
+
+
+def test_tool_fails_closed_when_trust_root_is_missing(
+    complete_repository: Path, tmp_path: Path
+) -> None:
+    import shutil
+
+    contracts = tmp_path / "context"
+    shutil.copytree(PROJECT_ROOT / "context", contracts)
+    (contracts / "trust-root.json").unlink()
+    runtime = AgentRuntime(
+        repository_root=complete_repository,
+        contract_root=contracts,
+    )
+    payload = evaluate_release_reference(runtime, "Orion 1.0.0")
+    assert payload.status == AnswerStatus.ANSWERED
+    assert payload.decision == Decision.INDETERMINATE
+    assert payload.trust_state == ContractTrustState.MISSING
+    assert payload.decision != Decision.READY

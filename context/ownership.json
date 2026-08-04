@@ -1,5 +1,6 @@
 {
   "id": "ownership:orion-release",
+  "granted_by": "authority:orion-governance-board",
   "owner_id": "owner:release-council",
   "owner_label": "Release Council",
   "owner_role": "repository-owner",
@@ -8,5 +9,5 @@
     "Orion 1.0.0",
     "orion-service-v1.0.0"
   ],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

@@ -1,39 +1,54 @@
-# Standalone build brief
+# Standalone build brief: v0.2 hostile governance
 
 ## Confirmed source findings
 
-- Repository questions such as release readiness depend on exact identity,
-  policy, ownership, evidence existence, and freshness—not prose alone.
-- A deterministic evaluator can own those facts and return `READY`, `HOLD`, or
-  `INDETERMINATE` with inspectable evidence paths and digests.
-- An agent can safely translate natural language and explain the deterministic
-  result when it has one narrow, read-only tool and a typed output contract.
-- The proof must compare that real agent path with a retrieval-only baseline on
-  matched cases rather than treating unit tests as evidence of model behavior.
+- Repository decisions depend on trustworthy identity, policy, ownership,
+  evidence coordinates, and runtime freshness—not prose alone.
+- v0.1 showed that a deterministic evaluator plus one narrow agent tool could
+  preserve exact decisions and report digests against a lexical-retrieval
+  baseline.
+- v0.2 tests the next boundary: the context contracts themselves may be
+  corrupted, stale, semantically ambiguous, or issued to an unauthorized owner.
+- The comparison must use a materially stronger control than top-k excerpts and
+  must report equal performance honestly.
 
 ## Bounded choices
 
-- Use a wholly synthetic Orion release so the repository can be shared without
-  exposing the source project's names, policies, code, or data.
-- Keep runtime Git/CI freshness outside the stable policy report digest.
-- Use one agent and one function tool; no write tools, handoffs, sandbox, or
-  deployment layer are needed for this experiment.
-- Treat the deterministic evaluator as the oracle and require an exact decision,
-  exact report digest, and exactly one governed tool call.
+- Keep the wholly synthetic Orion release so the repository remains shareable.
+- Add one external trust-root file containing the authority, authorized owners,
+  active policy, minimum policy epoch, canonical target, and exact SHA-256 digest
+  of every governed contract.
+- Treat that trust root as the experiment's external anchor. Production would
+  need to protect, sign, or retrieve the anchor from a separately trusted system.
+- Fail closed to `INDETERMINATE` before evidence evaluation when contract trust
+  is not `verified`.
+- Retain one Agents SDK agent and one read-only function tool. The model explains
+  a typed result; it never computes or overrides the governed decision.
+- Compare against a full repository packet containing the complete inventory,
+  every text file, and raw file digests, with explicit instructions to apply the
+  same governance rules through model reasoning.
 
 ## Application contract
 
 - Input: a natural-language question containing an Orion 1.0.0 release alias.
-- Output: typed status, canonical release, decision, explanation, explicit owner,
-  freshness, report digest, evidence paths, and blocking requirements.
+- Output: typed status, canonical release, decision, owner, contract-trust state
+  and issues, freshness, report digest, evidence paths, and blockers.
 - Tool: one deterministic repository-context lookup.
 - State: repository and contract roots remain in local SDK run context.
-- Side effects: none beyond OpenAI API calls and an ignored local eval result.
-- Proof command: `.venv/bin/python evals/run_live.py`.
+- Side effects: OpenAI API calls and an ignored local result file only.
+- Offline proof: `.venv/bin/python -m pytest` and
+  `.venv/bin/python -m ruff check .`.
+- Live proof: `.venv/bin/python evals/run_live.py --repeats 3`.
 
 ## Success bar
 
-- All offline tests and lint checks pass.
-- The checked-in demo evaluates to `READY`.
-- The governed agent matches every oracle decision and digest with one tool call.
-- The governed path beats retrieval-only on at least one matched case.
+- Every governed run exactly matches oracle decision, trust state, trust issues,
+  report digest, and one-tool-call audit.
+- No corrupted, stale, unauthorized, or ambiguous contract case returns
+  `READY`.
+- Missing governed evidence remains `HOLD`; malformed evidence remains
+  `INDETERMINATE`; plausible evidence at an ungoverned path has no effect.
+- The stronger comparator's accuracy, false-ready rate, latency, requests, and
+  token use are reported without requiring it to lose.
+- The checked-in compact result is bound to the exact case-manifest and trust-root
+  digests.

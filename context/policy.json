@@ -1,5 +1,6 @@
 {
   "id": "orion-1.0.0-release-readiness",
+  "epoch": 2,
   "label": "Orion 1.0.0 release-readiness policy",
   "requirements": [
     {
@@ -51,5 +52,5 @@
     "Orion 1.0.0",
     "orion-service-v1.0.0"
   ],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

@@ -10,14 +10,13 @@ from agents import Agent, RunContextWrapper, Runner, function_tool, trace
 from pydantic import BaseModel, ConfigDict, Field
 
 from .evaluator import (
+    ContractTrustState,
     Decision,
     Freshness,
     canonical_json,
     evaluate_context_envelope,
-    load_identity,
-    load_ownership,
-    load_policy,
-    resolve_release_identity,
+    load_trust_root,
+    trusted_reference_matches,
 )
 
 DEFAULT_MODEL = "gpt-5.6-sol"
@@ -37,6 +36,8 @@ class AgentAnswer(BaseModel):
     decision: Decision | None
     summary: str
     owner_id: str | None
+    trust_state: ContractTrustState | None
+    trust_issues: list[str] = Field(default_factory=list)
     freshness: Freshness | None
     report_digest: str | None
     evidence_paths: list[str] = Field(default_factory=list)
@@ -61,6 +62,8 @@ class ToolPayload(BaseModel):
     supported_target: str
     decision: Decision | None = None
     owner_id: str | None = None
+    trust_state: ContractTrustState | None = None
+    trust_issues: list[str] = Field(default_factory=list)
     freshness: Freshness | None = None
     graph_digest: str | None = None
     report_digest: str | None = None
@@ -75,7 +78,17 @@ class ToolCallAudit(BaseModel):
     requested_reference: str
     status: AnswerStatus
     decision: Decision | None
+    trust_state: ContractTrustState | None
     report_digest: str | None
+
+
+class TokenUsage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    requests: int
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
 
 
 class AgentRunRecord(BaseModel):
@@ -84,6 +97,7 @@ class AgentRunRecord(BaseModel):
     model: str
     answer: AgentAnswer
     tool_calls: list[ToolCallAudit]
+    usage: TokenUsage
 
 
 @dataclass
@@ -100,12 +114,19 @@ def _instructions() -> str:
 def evaluate_release_reference(
     runtime: AgentRuntime, release_reference: str
 ) -> ToolPayload:
-    identity_contract = load_identity(runtime.contract_root)
-    policy = load_policy(runtime.contract_root)
-    governed = resolve_release_identity(policy["target_references"], identity_contract)
-    requested = resolve_release_identity((release_reference,), identity_contract)
-    supported_target = governed.canonical_id or "<unresolved>"
-    if requested.canonical_id != supported_target:
+    envelope = evaluate_context_envelope(
+        runtime.repository_root,
+        contract_root=runtime.contract_root,
+    )
+    report = envelope.report
+    try:
+        trust_root = load_trust_root(runtime.contract_root)
+    except (OSError, UnicodeError, ValueError):
+        trust_root = None
+    supported_target = report.target_release
+    if trust_root is not None and not trusted_reference_matches(
+        release_reference, trust_root
+    ):
         payload = ToolPayload(
             status=AnswerStatus.UNSUPPORTED,
             requested_reference=release_reference,
@@ -121,16 +142,12 @@ def evaluate_release_reference(
                 requested_reference=release_reference,
                 status=payload.status,
                 decision=None,
+                trust_state=None,
                 report_digest=None,
             )
         )
         return payload
 
-    envelope = evaluate_context_envelope(
-        runtime.repository_root,
-        contract_root=runtime.contract_root,
-    )
-    report = envelope.report
     evidence_by_id = {item.evidence_id: item for item in report.evidence}
     requirements = [
         ToolRequirement(
@@ -142,13 +159,14 @@ def evaluate_release_reference(
         )
         for item in report.requirements
     ]
-    ownership = load_ownership(runtime.contract_root)
     payload = ToolPayload(
         status=AnswerStatus.ANSWERED,
         requested_reference=release_reference,
         supported_target=report.target_release,
         decision=report.decision,
-        owner_id=str(ownership["owner_id"]),
+        owner_id=report.owner_id,
+        trust_state=report.contract_trust.state,
+        trust_issues=list(report.contract_trust.issues),
         freshness=envelope.execution_context.freshness,
         graph_digest=report.graph_digest,
         report_digest=report.report_digest,
@@ -164,6 +182,7 @@ def evaluate_release_reference(
             requested_reference=release_reference,
             status=payload.status,
             decision=payload.decision,
+            trust_state=payload.trust_state,
             report_digest=payload.report_digest,
         )
     )
@@ -208,4 +227,15 @@ async def run_agent(
     answer = result.final_output
     if not isinstance(answer, AgentAnswer):
         answer = AgentAnswer.model_validate(answer)
-    return AgentRunRecord(model=model, answer=answer, tool_calls=runtime.tool_calls)
+    usage = result.context_wrapper.usage
+    return AgentRunRecord(
+        model=model,
+        answer=answer,
+        tool_calls=runtime.tool_calls,
+        usage=TokenUsage(
+            requests=usage.requests,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
+        ),
+    )

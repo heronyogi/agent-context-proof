@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the two documentation diagrams as PNG files."""
+"""Generate the v0.2 documentation diagrams as PNG files."""
 
 from __future__ import annotations
 
@@ -130,43 +130,53 @@ def interactions() -> None:
     )
     box(
         draw,
-        (945, 180, 1515, 540),
+        (945, 165, 1515, 330),
+        "External trust root",
+        ["Authority + owner allowlist", "Contract digests + policy epoch"],
+        fill=AMBER_PALE,
+        outline=AMBER,
+    )
+    box(
+        draw,
+        (945, 405, 1515, 680),
         "Context evaluator",
         [
-            "Identity + ownership",
+            "Verify contracts first",
+            "Identity + authorization",
             "Policy + typed ontology",
             "Exact evidence checks",
-            "READY / HOLD / INDETERMINATE",
-            "Evidence paths + digests",
+            "Fail closed before evidence",
         ],
         fill=GREEN_PALE,
         outline=GREEN,
     )
     box(
         draw,
-        (485, 630, 1085, 815),
+        (400, 670, 850, 835),
         "Proof output",
-        ["Decision matches oracle", "Digest matches", "Tool count = 1"],
+        ["Exact decision + digest", "Trust state + issues", "Tool count = 1"],
         fill=AMBER_PALE,
         outline=AMBER,
     )
     arrow(draw, (370, 360), (485, 360), "asks")
-    arrow(draw, (830, 360), (945, 360), "calls")
-    arrow(draw, (1230, 540), (1085, 700), "returns")
-    arrow(draw, (785, 630), (660, 500), "explains")
+    arrow(draw, (830, 360), (945, 500), "calls")
+    arrow(draw, (1230, 330), (1230, 405), "anchors")
+    arrow(draw, (945, 590), (850, 730), "returns")
+    arrow(draw, (600, 670), (660, 500), "explains")
     image.save(DOCS / "agent-interactions.png")
 
 
 def sequence() -> None:
     image, draw = canvas(
         "Proof sequence",
-        "The governed and retrieval-only paths use the same model and the same cases.",
+        "Same model. Fresh fixture per case. Expected labels withheld from both "
+        "prompts.",
     )
     columns = [
         (95, "Case"),
         (450, "Governed"),
         (850, "Oracle"),
-        (1240, "Retrieval-only"),
+        (1240, "Full packet"),
     ]
     for x, label in columns:
         draw.text((x, 180), label, fill=INK, font=LABEL)
@@ -175,16 +185,16 @@ def sequence() -> None:
         (285, "same question", 160, 515),
         (390, "one context tool call", 515, 915),
         (500, "exact decision + digest", 915, 515),
-        (615, "same question + excerpts", 160, 1305),
-        (720, "structured answer", 1305, 160),
+        (615, "question + all files + digests", 160, 1305),
+        (720, "decision graded", 1305, 915),
     ]
     for y, label, start_x, end_x in steps:
         arrow(draw, (start_x, y), (end_x, y), label)
     draw.rounded_rectangle((70, 810, 1530, 865), radius=16, fill=GREEN_PALE)
     draw.text(
         (110, 826),
-        "Pass: governed = oracle on every case, exact digest and one tool call, "
-        "with ≥1 retrieval-only miss.",
+        "Pass: governed = oracle on every run, one tool call, exact digest, and "
+        "zero false-ready hostile cases.",
         fill=GREEN,
         font=BODY,
     )

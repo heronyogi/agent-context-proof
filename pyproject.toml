@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-context-proof"
-version = "0.1.0"
-description = "A reproducible proof that governed context outperforms retrieval-only context for repository decisions"
+version = "0.2.0"
+description = "A reproducible proof of fail-closed governed context for repository decisions"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
