@@ -123,6 +123,10 @@ The matching sealed record adds:
     "disposition": "AUTHORITY_CONFLICT",
     "mechanism_status": "CONFORMANT",
     "authority_status": "CONFLICT",
+    "oracle_rule_ids": [
+      "OA2_CONFLICT",
+      "V4_AUTHORITY_CONFLICT"
+    ],
     "reason_codes": ["VALID_ISSUER_CONFLICT"],
     "provenance": []
   },
@@ -131,6 +135,23 @@ The matching sealed record adds:
 ```
 
 The example values illustrate shape only and are not a required blind case.
+
+## Oracle labeling and disagreement
+
+At least two eligible annotators who did not implement either evaluated
+resolver independently apply the committed oracle-classification tables. Each
+annotation records the three output fields, the applicable `OA`, `OE`, and `V`
+rule IDs, the complete case coordinate, validation time, decisive provenance,
+and a deterministic rationale. An `OE` rule is required only after `OA1_VALID`;
+mechanism failure instead records `V7` or `V8`.
+
+The protocol reviewer compares the annotations before pack commitment. Exact
+agreement is accepted. A disagreement is adjudicated only by applying the
+committed rules to the committed bytes; neither majority vote nor a new semantic
+rule is allowed. The two original annotations, adjudication, final rule IDs, and
+rationale are sealed with the oracle pack. If the committed rules do not produce
+one label, the case is `REJECT` and must be replaced before commitment. An
+implementer may not act as annotator or adjudicator.
 
 ## Family construction
 
@@ -202,6 +223,7 @@ The blind-run record must name:
 - public-commitment, sealed-input-pack, and sealed-oracle-pack digests;
 - authorship records and the relatedness graph digest;
 - blinded leakage-review and adjudication digests;
+- oracle-annotation and oracle-adjudication digests;
 - implementation freeze commit;
 - governed prompt and rule digests;
 - comparator prompt and rule digests;
@@ -210,7 +232,7 @@ The blind-run record must name:
 - input-pack reveal timestamp;
 - all-path output and trace commitment digests;
 - reveal timestamp; and
-- case exclusions decided before reveal.
+- case exclusions decided before reveal and the frozen exclusion-set digest.
 
 After reveal, changes to evaluated code, prompts, rules, cases, or labels create
 a new experiment version. They cannot be folded into the original v0.3 result.

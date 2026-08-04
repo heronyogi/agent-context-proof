@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -35,7 +36,9 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
         values = [value.strip() for value in line.strip("|").split("|")]
         return [
             value[1:-1]
-            if value.startswith("`") and value.endswith("`")
+            if value.startswith("`")
+            and value.endswith("`")
+            and value.count("`") == 2
             else value
             for value in values
         ]
@@ -46,7 +49,7 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.1"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.2"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"
@@ -169,14 +172,22 @@ def test_signature_epoch_revocation_and_precedence_are_fully_pinned() -> None:
         "algorithm": "Ed25519",
         "canonicalization": "RFC8785_JCS",
         "key_id": "sha256:<lowercase_hex_sha256_raw_32_byte_public_key>",
+        "public_key_encoding": "base64url_no_padding_raw_32_bytes",
+        "signature_bytes": 64,
         "signature_encoding": "base64url_no_padding",
         "signed_payload": "utf8_jcs(entry_without_top_level_signature_member)",
     }
     assert epoch == {
         "comparison_domain": "same_lineage_only",
+        "effective_epoch": (
+            "highest_validated_successor_whose_boundary_is_at_or_before_"
+            "validation_time"
+        ),
         "minimum": 0,
+        "parallel_different_successors": "INDETERMINATE",
         "rotation_increment": 1,
-        "same_lineage_same_epoch_different_payload": "INDETERMINATE",
+        "same_lineage_same_epoch_different_successor": "INDETERMINATE",
+        "successor_endorsement_entry_type": "rotation",
         "unlinked_higher_epoch": "INVALID",
     }
     assert precedence["representation"] == "signed_scoped_time_bounded_directed_edges"
@@ -188,6 +199,109 @@ def test_signature_epoch_revocation_and_precedence_are_fully_pinned() -> None:
         "not_before",
         "not_after",
     ]
+
+
+def test_ledger_entry_and_validation_tables_mirror_machine_contract() -> None:
+    protocol = _protocol()
+    entry_rows = _markdown_table(PROTOCOL_MD, "### Ledger entry types")
+    markdown_entries = [
+        {
+            "entry_type": row["Entry type"],
+            "required_fields": re.findall(
+                r"`([^`]+)`", row["Required type-specific fields"]
+            ),
+            "rule": row["Authority rule"],
+        }
+        for row in entry_rows
+    ]
+    assert markdown_entries == protocol["authority_ledger"]["entry_types"]
+
+    validation_rows = _markdown_table(PROTOCOL_MD, "### Ledger validation order")
+    markdown_validation = [
+        {"id": row["Rule ID"], "rule": row["Normative operation"]}
+        for row in validation_rows
+    ]
+    assert markdown_validation == protocol["authority_ledger"]["validation_order"]
+
+
+def test_oracle_tables_mirror_machine_contract_and_valid_outputs() -> None:
+    protocol = _protocol()
+    oracle = protocol["oracle_classification"]
+    authority_rows = _markdown_table(PROTOCOL_MD, "### Authority classification")
+    markdown_authority = [
+        {
+            "authority_status": row["Authority status"],
+            "disposition_route": row["Disposition route"],
+            "id": row["Rule ID"],
+            "rule": row["Condition"],
+        }
+        for row in authority_rows
+    ]
+    assert markdown_authority == oracle["authority_rules"]
+
+    evidence_rows = _markdown_table(PROTOCOL_MD, "### Evidence classification")
+    markdown_evidence = [
+        {
+            "disposition": row["Disposition"],
+            "evidence_state": row["Evidence state"],
+            "id": row["Rule ID"],
+            "rule": row["Condition"],
+        }
+        for row in evidence_rows
+    ]
+    assert markdown_evidence == oracle["evidence_rules"]
+
+    valid = {item["id"]: item for item in protocol["valid_output_combinations"]}
+    authority_routes = {
+        item["id"]: item["disposition_route"]
+        for item in oracle["authority_rules"]
+    }
+    assert authority_routes == {
+        "OA1_VALID": "EVIDENCE_CLASSIFICATION",
+        "OA2_CONFLICT": valid["V4_AUTHORITY_CONFLICT"]["disposition"],
+        "OA3_INVALID": valid["V5_AUTHORITY_INVALID"]["disposition"],
+        "OA4_UNKNOWN": valid["V6_AUTHORITY_UNKNOWN"]["disposition"],
+    }
+    assert oracle["evidence_aggregation_precedence"] == [
+        "UNKNOWN",
+        "UNSATISFIED",
+        "SATISFIED",
+    ]
+    assert {
+        item["evidence_state"]: item["disposition"]
+        for item in oracle["evidence_rules"]
+    } == {
+        "UNKNOWN": valid["V3_EVIDENCE_UNKNOWN"]["disposition"],
+        "UNSATISFIED": valid["V2_HOLD"]["disposition"],
+        "SATISFIED": valid["V1_READY"]["disposition"],
+    }
+
+
+def test_scoring_population_exactly_mirrors_and_constrains_pass_rules() -> None:
+    protocol = _protocol()
+    population = protocol["scoring_population"]
+    rows = _markdown_table(PROTOCOL_MD, "## Scoring population")
+    markdown_rules = [
+        {"id": row["Rule ID"], "rule": row["Normative rule"]} for row in rows
+    ]
+    assert markdown_rules == population["ordered_rules"]
+    assert population["proof_gating_path"] == "governed"
+    assert population["case_accuracy_denominator"] == "included_unique_case_ids"
+    assert population["comparator_population"] == "same_included_case_ids"
+    assert population["comparator_accuracy_gates_proof"] is False
+    assert population["post_reveal_exclusions_allowed"] is False
+    assert population["minimum_after_exclusions"] == {
+        "cases": protocol["blind_case_minimum"],
+        "distinct_primary_authors": 4,
+        "independence_clusters": protocol["blind_family_minimum"],
+    }
+
+    conditions = protocol["pass_conditions"]
+    assert conditions["proof_gating_path"] == population["proof_gating_path"]
+    assert conditions["comparator_accuracy_gates_proof"] is False
+    assert conditions["post_reveal_exclusions_allowed"] is False
+    assert conditions["missing_governed_output_counts_as_failure"] is True
+    assert conditions["every_governed_repeat_must_match"] is True
 
 
 def test_blind_families_are_independently_authored_and_auditable() -> None:
@@ -258,6 +372,31 @@ def test_leakage_review_can_only_pass_revise_or_reject_before_commitment() -> No
     assert "randomized case IDs and randomized case order" in authoring_text
     assert "Only `PASS` cases enter the committed pack" in authoring_text
     assert "new blinded reviewer" in authoring_text
+
+
+def test_oracle_labeling_requires_independent_rules_and_disagreement(
+) -> None:
+    labeling = _protocol()["blind_evaluation"]["oracle_labeling"]
+    assert labeling == {
+        "disagreement_if_unresolved": "REJECT_BEFORE_PACK_COMMITMENT",
+        "implementer_may_annotate": False,
+        "minimum_independent_annotators": 2,
+        "required_rule_id_classes": [
+            "mechanism_or_valid_output",
+            "authority",
+            "evidence_when_authority_valid",
+        ],
+        "sealed_artifacts": [
+            "independent_annotations",
+            "adjudication_record",
+            "oracle_rule_ids",
+            "rationale",
+        ],
+    }
+    authoring_text = _collapsed(AUTHORING_MD.read_text(encoding="utf-8"))
+    assert "At least two eligible annotators" in authoring_text
+    assert "neither majority vote nor a new semantic rule is allowed" in authoring_text
+    assert "the case is `REJECT`" in authoring_text
 
 
 def test_v03_requires_a_true_independent_rules_comparator() -> None:

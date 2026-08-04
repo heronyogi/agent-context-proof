@@ -18,6 +18,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "cryptography>=45,<51",
+  "jsonschema>=4.25,<5",
   "pillow>=11,<13",
   "pytest>=8,<10",
   "ruff>=0.12,<1",

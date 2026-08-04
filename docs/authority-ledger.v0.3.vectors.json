@@ -1,0 +1,506 @@
+{
+  "example_bundle": {
+    "case_coordinate": {
+      "action": "release",
+      "artifact": "release:orion:1.0.0",
+      "organization": "org:orion",
+      "repository": "repo:orion-service"
+    },
+    "entries": [
+      {
+        "entry_id": "entry:delegation-release-council",
+        "entry_type": "delegation",
+        "issued_at": "2030-01-01T00:00:00Z",
+        "issuer_epoch": 0,
+        "issuer_id": "authority:root-a",
+        "issuer_key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-01-01T00:00:00Z",
+        "permissions": [
+          "claim"
+        ],
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+          "value": "ZCJIO2-_QlkmF7Q7meIP8YG30faXK884ahgf6Hna7-4Y_kKeC4Zy3XE8LcF7C2evkWvCByFIktclE-kbfo7ACQ"
+        },
+        "subject_epoch": 0,
+        "subject_issuer_id": "authority:release-council",
+        "subject_key_id": "sha256:68894d58f18f2c34d49eb2f4b110e042cd0f3150a4dc39243d7f63bd598c0783",
+        "subject_lineage_id": "lineage:release-council",
+        "subject_public_key_base64url": "F0VTtFbd38aQjsqxwQH-arIeK6oGF3lbfUOmNIKZP9U"
+      },
+      {
+        "entry_id": "entry:rotation-root-a-epoch-1",
+        "entry_type": "rotation",
+        "issued_at": "2030-01-01T00:00:00Z",
+        "issuer_epoch": 0,
+        "issuer_id": "authority:root-a",
+        "issuer_key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-03-01T00:00:00Z",
+        "predecessor_entry_id": "anchor:root-a-epoch-0",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+          "value": "eFmWYQZPkuLqYgiK7Gy-MCCny313QTmlpn978CviMaiJnlPJsL9fYUF-SxqUZhlFT5uyoKVc9G2fC-qN3ddNCQ"
+        },
+        "successor_epoch": 1,
+        "successor_issuer_id": "authority:root-a-successor",
+        "successor_key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+        "successor_permissions": [
+          "claim",
+          "delegate",
+          "revoke",
+          "rotate",
+          "set_precedence"
+        ],
+        "successor_public_key_base64url": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc"
+      },
+      {
+        "effective_at": "2030-06-01T00:00:00Z",
+        "entry_id": "entry:revoke-release-council",
+        "entry_type": "revocation",
+        "issued_at": "2030-01-01T00:00:00Z",
+        "issuer_epoch": 0,
+        "issuer_id": "authority:root-a",
+        "issuer_key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-01-01T00:00:00Z",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+          "value": "50joNQOTwj8z39pDtyjAJIst6WTGdJLWdh0qrzrwublTXRzp4xsyf1rvXxWFLsVV7ITuRUzPUhg2pM4Y3wmgDw"
+        },
+        "target_entry_id": "entry:delegation-release-council",
+        "target_issuer_id": "authority:release-council"
+      },
+      {
+        "entry_id": "entry:precedence-successor-over-council",
+        "entry_type": "precedence",
+        "higher_issuer_id": "authority:root-a-successor",
+        "issued_at": "2030-03-02T00:00:00Z",
+        "issuer_epoch": 1,
+        "issuer_id": "authority:root-a-successor",
+        "issuer_key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+        "lineage_id": "lineage:root-a",
+        "lower_issuer_id": "authority:release-council",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-03-02T00:00:00Z",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+          "value": "FVJbCatjaMPpEhUzma990sCEpljgwelHvoyCNissFrEJxCGLuhb47kyjwL3KdHuLjv7WMua1uK5VbY517XPIDQ"
+        }
+      },
+      {
+        "compromised_issuer_id": "authority:root-a",
+        "effective_at": "2030-05-01T00:00:00Z",
+        "entry_id": "entry:recovery-root-a",
+        "entry_type": "recovery",
+        "issued_at": "2030-01-01T00:00:00Z",
+        "issuer_epoch": 0,
+        "issuer_id": "authority:recovery-a",
+        "issuer_key_id": "sha256:03396219237f75a64f12aeb7f39723abf400b160c364980a765dac24aeba2464",
+        "lineage_id": "lineage:recovery-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-01-01T00:00:00Z",
+        "replacement_epoch": 1,
+        "replacement_issuer_id": "authority:root-a-successor",
+        "replacement_key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+        "replacement_lineage_id": "lineage:root-a",
+        "replacement_permissions": [
+          "claim",
+          "delegate",
+          "revoke",
+          "rotate",
+          "set_precedence"
+        ],
+        "replacement_public_key_base64url": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:03396219237f75a64f12aeb7f39723abf400b160c364980a765dac24aeba2464",
+          "value": "zMXtio-SwRH5G8qRoPg-80eMW0bnFdH0KTCNHcs0U_L_axlLIlwZVLRmnT63WQ-HFta7pCcUVDW-gQ6Nk9dpBw"
+        }
+      },
+      {
+        "claim_name": "release_owner",
+        "claim_value": "owner:release-council",
+        "entry_id": "entry:claim-release-owner",
+        "entry_type": "claim",
+        "issued_at": "2030-03-02T00:00:00Z",
+        "issuer_epoch": 1,
+        "issuer_id": "authority:root-a-successor",
+        "issuer_key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-03-01T00:00:00Z",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+          "value": "EedVHkbGd4eAKJ7Fzua4xgWatJmcTM7iSSffjFXOslSlriNlGMghL2OIHoFfGpc-f8Ns5MBc7H2gcUewLnyECQ"
+        }
+      }
+    ],
+    "lineage_heads": [
+      {
+        "entry_id": "entry:rotation-root-a-epoch-1",
+        "epoch": 1,
+        "lineage_id": "lineage:root-a",
+        "payload_sha256": "sha256:db5ea536ecc5852167f17c0ce24e937444b3b9f416054e1755df5283cc72a2a2"
+      },
+      {
+        "entry_id": "entry:delegation-release-council",
+        "epoch": 0,
+        "lineage_id": "lineage:release-council",
+        "payload_sha256": "sha256:7ac7ee6ba1264585d5181e002a31e11f2ef3bf79c08a715bd4638c0696575bdb"
+      }
+    ],
+    "recovery_trust_anchors": [
+      {
+        "anchor_id": "anchor:recovery-a-epoch-0",
+        "epoch": 0,
+        "issuer_id": "authority:recovery-a",
+        "key_id": "sha256:03396219237f75a64f12aeb7f39723abf400b160c364980a765dac24aeba2464",
+        "lineage_id": "lineage:recovery-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-01-01T00:00:00Z",
+        "permissions": [
+          "recover"
+        ],
+        "public_key_base64url": "JUO5L_EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0",
+        "replacement_permissions_ceiling": [
+          "claim",
+          "delegate",
+          "revoke",
+          "rotate",
+          "set_precedence"
+        ],
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        }
+      }
+    ],
+    "schema_version": "agent-context-proof-authority-bundle-v0.3.0",
+    "trust_anchors": [
+      {
+        "anchor_id": "anchor:root-a-epoch-0",
+        "epoch": 0,
+        "issuer_id": "authority:root-a",
+        "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-01-01T00:00:00Z",
+        "permissions": [
+          "claim",
+          "delegate",
+          "revoke",
+          "rotate",
+          "set_precedence"
+        ],
+        "public_key_base64url": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        }
+      }
+    ],
+    "validation_time": "2030-07-01T00:00:00Z"
+  },
+  "keys": [
+    {
+      "issuer_id": "authority:root-a",
+      "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+      "lineage_id": "lineage:root-a",
+      "name": "root",
+      "private_seed_base64url_TEST_ONLY": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+      "public_key_base64url": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+    },
+    {
+      "issuer_id": "authority:root-a-successor",
+      "key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+      "lineage_id": "lineage:root-a",
+      "name": "successor",
+      "private_seed_base64url_TEST_ONLY": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8",
+      "public_key_base64url": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc"
+    },
+    {
+      "issuer_id": "authority:recovery-a",
+      "key_id": "sha256:03396219237f75a64f12aeb7f39723abf400b160c364980a765dac24aeba2464",
+      "lineage_id": "lineage:recovery-a",
+      "name": "recovery",
+      "private_seed_base64url_TEST_ONLY": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8",
+      "public_key_base64url": "JUO5L_EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0"
+    },
+    {
+      "issuer_id": "authority:release-council",
+      "key_id": "sha256:68894d58f18f2c34d49eb2f4b110e042cd0f3150a4dc39243d7f63bd598c0783",
+      "lineage_id": "lineage:release-council",
+      "name": "delegate",
+      "private_seed_base64url_TEST_ONLY": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+      "public_key_base64url": "F0VTtFbd38aQjsqxwQH-arIeK6oGF3lbfUOmNIKZP9U"
+    }
+  ],
+  "profile": {
+    "algorithm": "Ed25519",
+    "canonicalization": "RFC8785_JCS",
+    "note": "Private seeds are public, synthetic test material and MUST NOT be used outside conformance tests.",
+    "signature_encoding": "base64url_no_padding"
+  },
+  "schema_version": "agent-context-proof-authority-vectors-v0.3.0",
+  "vectors": [
+    {
+      "canonical_payload": "{\"entry_id\":\"entry:delegation-release-council\",\"entry_type\":\"delegation\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"issuer_epoch\":0,\"issuer_id\":\"authority:root-a\",\"issuer_key_id\":\"sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c\",\"lineage_id\":\"lineage:root-a\",\"not_after\":\"2031-01-01T00:00:00Z\",\"not_before\":\"2030-01-01T00:00:00Z\",\"permissions\":[\"claim\"],\"schema_version\":\"agent-context-proof-authority-entry-v0.3.0\",\"scope\":{\"action\":\"release\",\"artifact\":\"release:orion:1.0.0\",\"organization\":\"org:orion\",\"repository\":\"repo:orion-service\"},\"subject_epoch\":0,\"subject_issuer_id\":\"authority:release-council\",\"subject_key_id\":\"sha256:68894d58f18f2c34d49eb2f4b110e042cd0f3150a4dc39243d7f63bd598c0783\",\"subject_lineage_id\":\"lineage:release-council\",\"subject_public_key_base64url\":\"F0VTtFbd38aQjsqxwQH-arIeK6oGF3lbfUOmNIKZP9U\"}",
+      "canonical_payload_sha256": "sha256:7ac7ee6ba1264585d5181e002a31e11f2ef3bf79c08a715bd4638c0696575bdb",
+      "entry_type": "delegation",
+      "signed_entry": {
+        "entry_id": "entry:delegation-release-council",
+        "entry_type": "delegation",
+        "issued_at": "2030-01-01T00:00:00Z",
+        "issuer_epoch": 0,
+        "issuer_id": "authority:root-a",
+        "issuer_key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-01-01T00:00:00Z",
+        "permissions": [
+          "claim"
+        ],
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+          "value": "ZCJIO2-_QlkmF7Q7meIP8YG30faXK884ahgf6Hna7-4Y_kKeC4Zy3XE8LcF7C2evkWvCByFIktclE-kbfo7ACQ"
+        },
+        "subject_epoch": 0,
+        "subject_issuer_id": "authority:release-council",
+        "subject_key_id": "sha256:68894d58f18f2c34d49eb2f4b110e042cd0f3150a4dc39243d7f63bd598c0783",
+        "subject_lineage_id": "lineage:release-council",
+        "subject_public_key_base64url": "F0VTtFbd38aQjsqxwQH-arIeK6oGF3lbfUOmNIKZP9U"
+      },
+      "vector_id": "vector:delegation"
+    },
+    {
+      "canonical_payload": "{\"entry_id\":\"entry:rotation-root-a-epoch-1\",\"entry_type\":\"rotation\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"issuer_epoch\":0,\"issuer_id\":\"authority:root-a\",\"issuer_key_id\":\"sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c\",\"lineage_id\":\"lineage:root-a\",\"not_after\":\"2031-01-01T00:00:00Z\",\"not_before\":\"2030-03-01T00:00:00Z\",\"predecessor_entry_id\":\"anchor:root-a-epoch-0\",\"schema_version\":\"agent-context-proof-authority-entry-v0.3.0\",\"scope\":{\"action\":\"release\",\"artifact\":\"release:orion:1.0.0\",\"organization\":\"org:orion\",\"repository\":\"repo:orion-service\"},\"successor_epoch\":1,\"successor_issuer_id\":\"authority:root-a-successor\",\"successor_key_id\":\"sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28\",\"successor_permissions\":[\"claim\",\"delegate\",\"revoke\",\"rotate\",\"set_precedence\"],\"successor_public_key_base64url\":\"Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc\"}",
+      "canonical_payload_sha256": "sha256:db5ea536ecc5852167f17c0ce24e937444b3b9f416054e1755df5283cc72a2a2",
+      "entry_type": "rotation",
+      "signed_entry": {
+        "entry_id": "entry:rotation-root-a-epoch-1",
+        "entry_type": "rotation",
+        "issued_at": "2030-01-01T00:00:00Z",
+        "issuer_epoch": 0,
+        "issuer_id": "authority:root-a",
+        "issuer_key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-03-01T00:00:00Z",
+        "predecessor_entry_id": "anchor:root-a-epoch-0",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+          "value": "eFmWYQZPkuLqYgiK7Gy-MCCny313QTmlpn978CviMaiJnlPJsL9fYUF-SxqUZhlFT5uyoKVc9G2fC-qN3ddNCQ"
+        },
+        "successor_epoch": 1,
+        "successor_issuer_id": "authority:root-a-successor",
+        "successor_key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+        "successor_permissions": [
+          "claim",
+          "delegate",
+          "revoke",
+          "rotate",
+          "set_precedence"
+        ],
+        "successor_public_key_base64url": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc"
+      },
+      "vector_id": "vector:rotation"
+    },
+    {
+      "canonical_payload": "{\"effective_at\":\"2030-06-01T00:00:00Z\",\"entry_id\":\"entry:revoke-release-council\",\"entry_type\":\"revocation\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"issuer_epoch\":0,\"issuer_id\":\"authority:root-a\",\"issuer_key_id\":\"sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c\",\"lineage_id\":\"lineage:root-a\",\"not_after\":\"2031-01-01T00:00:00Z\",\"not_before\":\"2030-01-01T00:00:00Z\",\"schema_version\":\"agent-context-proof-authority-entry-v0.3.0\",\"scope\":{\"action\":\"release\",\"artifact\":\"release:orion:1.0.0\",\"organization\":\"org:orion\",\"repository\":\"repo:orion-service\"},\"target_entry_id\":\"entry:delegation-release-council\",\"target_issuer_id\":\"authority:release-council\"}",
+      "canonical_payload_sha256": "sha256:79a3d58dd8e9eb565f499fb29351642509df2c9fee87edc2c443f204be1c46e7",
+      "entry_type": "revocation",
+      "signed_entry": {
+        "effective_at": "2030-06-01T00:00:00Z",
+        "entry_id": "entry:revoke-release-council",
+        "entry_type": "revocation",
+        "issued_at": "2030-01-01T00:00:00Z",
+        "issuer_epoch": 0,
+        "issuer_id": "authority:root-a",
+        "issuer_key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-01-01T00:00:00Z",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c",
+          "value": "50joNQOTwj8z39pDtyjAJIst6WTGdJLWdh0qrzrwublTXRzp4xsyf1rvXxWFLsVV7ITuRUzPUhg2pM4Y3wmgDw"
+        },
+        "target_entry_id": "entry:delegation-release-council",
+        "target_issuer_id": "authority:release-council"
+      },
+      "vector_id": "vector:revocation"
+    },
+    {
+      "canonical_payload": "{\"entry_id\":\"entry:precedence-successor-over-council\",\"entry_type\":\"precedence\",\"higher_issuer_id\":\"authority:root-a-successor\",\"issued_at\":\"2030-03-02T00:00:00Z\",\"issuer_epoch\":1,\"issuer_id\":\"authority:root-a-successor\",\"issuer_key_id\":\"sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28\",\"lineage_id\":\"lineage:root-a\",\"lower_issuer_id\":\"authority:release-council\",\"not_after\":\"2031-01-01T00:00:00Z\",\"not_before\":\"2030-03-02T00:00:00Z\",\"schema_version\":\"agent-context-proof-authority-entry-v0.3.0\",\"scope\":{\"action\":\"release\",\"artifact\":\"release:orion:1.0.0\",\"organization\":\"org:orion\",\"repository\":\"repo:orion-service\"}}",
+      "canonical_payload_sha256": "sha256:84204bf6121ef64a5f4dc4095c7fd9e7fa3922b13ef087630ff285c4cf821568",
+      "entry_type": "precedence",
+      "signed_entry": {
+        "entry_id": "entry:precedence-successor-over-council",
+        "entry_type": "precedence",
+        "higher_issuer_id": "authority:root-a-successor",
+        "issued_at": "2030-03-02T00:00:00Z",
+        "issuer_epoch": 1,
+        "issuer_id": "authority:root-a-successor",
+        "issuer_key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+        "lineage_id": "lineage:root-a",
+        "lower_issuer_id": "authority:release-council",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-03-02T00:00:00Z",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+          "value": "FVJbCatjaMPpEhUzma990sCEpljgwelHvoyCNissFrEJxCGLuhb47kyjwL3KdHuLjv7WMua1uK5VbY517XPIDQ"
+        }
+      },
+      "vector_id": "vector:precedence"
+    },
+    {
+      "canonical_payload": "{\"compromised_issuer_id\":\"authority:root-a\",\"effective_at\":\"2030-05-01T00:00:00Z\",\"entry_id\":\"entry:recovery-root-a\",\"entry_type\":\"recovery\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"issuer_epoch\":0,\"issuer_id\":\"authority:recovery-a\",\"issuer_key_id\":\"sha256:03396219237f75a64f12aeb7f39723abf400b160c364980a765dac24aeba2464\",\"lineage_id\":\"lineage:recovery-a\",\"not_after\":\"2031-01-01T00:00:00Z\",\"not_before\":\"2030-01-01T00:00:00Z\",\"replacement_epoch\":1,\"replacement_issuer_id\":\"authority:root-a-successor\",\"replacement_key_id\":\"sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28\",\"replacement_lineage_id\":\"lineage:root-a\",\"replacement_permissions\":[\"claim\",\"delegate\",\"revoke\",\"rotate\",\"set_precedence\"],\"replacement_public_key_base64url\":\"Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc\",\"schema_version\":\"agent-context-proof-authority-entry-v0.3.0\",\"scope\":{\"action\":\"release\",\"artifact\":\"release:orion:1.0.0\",\"organization\":\"org:orion\",\"repository\":\"repo:orion-service\"}}",
+      "canonical_payload_sha256": "sha256:0b99f993b58f596a223ddcce966a190ee5a7b066e35756bd59c42167cc14830b",
+      "entry_type": "recovery",
+      "signed_entry": {
+        "compromised_issuer_id": "authority:root-a",
+        "effective_at": "2030-05-01T00:00:00Z",
+        "entry_id": "entry:recovery-root-a",
+        "entry_type": "recovery",
+        "issued_at": "2030-01-01T00:00:00Z",
+        "issuer_epoch": 0,
+        "issuer_id": "authority:recovery-a",
+        "issuer_key_id": "sha256:03396219237f75a64f12aeb7f39723abf400b160c364980a765dac24aeba2464",
+        "lineage_id": "lineage:recovery-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-01-01T00:00:00Z",
+        "replacement_epoch": 1,
+        "replacement_issuer_id": "authority:root-a-successor",
+        "replacement_key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+        "replacement_lineage_id": "lineage:root-a",
+        "replacement_permissions": [
+          "claim",
+          "delegate",
+          "revoke",
+          "rotate",
+          "set_precedence"
+        ],
+        "replacement_public_key_base64url": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:03396219237f75a64f12aeb7f39723abf400b160c364980a765dac24aeba2464",
+          "value": "zMXtio-SwRH5G8qRoPg-80eMW0bnFdH0KTCNHcs0U_L_axlLIlwZVLRmnT63WQ-HFta7pCcUVDW-gQ6Nk9dpBw"
+        }
+      },
+      "vector_id": "vector:recovery"
+    },
+    {
+      "canonical_payload": "{\"claim_name\":\"release_owner\",\"claim_value\":\"owner:release-council\",\"entry_id\":\"entry:claim-release-owner\",\"entry_type\":\"claim\",\"issued_at\":\"2030-03-02T00:00:00Z\",\"issuer_epoch\":1,\"issuer_id\":\"authority:root-a-successor\",\"issuer_key_id\":\"sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28\",\"lineage_id\":\"lineage:root-a\",\"not_after\":\"2031-01-01T00:00:00Z\",\"not_before\":\"2030-03-01T00:00:00Z\",\"schema_version\":\"agent-context-proof-authority-entry-v0.3.0\",\"scope\":{\"action\":\"release\",\"artifact\":\"release:orion:1.0.0\",\"organization\":\"org:orion\",\"repository\":\"repo:orion-service\"}}",
+      "canonical_payload_sha256": "sha256:c7160d8a8c5baa4ca2ac5f5b1f36527eea2a7a9af24d5851b1e74bc5002803c5",
+      "entry_type": "claim",
+      "signed_entry": {
+        "claim_name": "release_owner",
+        "claim_value": "owner:release-council",
+        "entry_id": "entry:claim-release-owner",
+        "entry_type": "claim",
+        "issued_at": "2030-03-02T00:00:00Z",
+        "issuer_epoch": 1,
+        "issuer_id": "authority:root-a-successor",
+        "issuer_key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+        "lineage_id": "lineage:root-a",
+        "not_after": "2031-01-01T00:00:00Z",
+        "not_before": "2030-03-01T00:00:00Z",
+        "schema_version": "agent-context-proof-authority-entry-v0.3.0",
+        "scope": {
+          "action": "release",
+          "artifact": "release:orion:1.0.0",
+          "organization": "org:orion",
+          "repository": "repo:orion-service"
+        },
+        "signature": {
+          "key_id": "sha256:24f6ed6acbfe1009c030d7ca567c33ca4830911498236b5561a6c82abec5de28",
+          "value": "EedVHkbGd4eAKJ7Fzua4xgWatJmcTM7iSSffjFXOslSlriNlGMghL2OIHoFfGpc-f8Ns5MBc7H2gcUewLnyECQ"
+        }
+      },
+      "vector_id": "vector:claim"
+    }
+  ]
+}

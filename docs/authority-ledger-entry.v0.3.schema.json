@@ -1,0 +1,398 @@
+{
+  "$defs": {
+    "base_entry": {
+      "properties": {
+        "entry_id": {
+          "$ref": "#/$defs/id"
+        },
+        "entry_type": {
+          "enum": [
+            "claim",
+            "delegation",
+            "precedence",
+            "recovery",
+            "revocation",
+            "rotation"
+          ]
+        },
+        "issued_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "issuer_epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "issuer_id": {
+          "$ref": "#/$defs/id"
+        },
+        "issuer_key_id": {
+          "$ref": "#/$defs/key_id"
+        },
+        "lineage_id": {
+          "$ref": "#/$defs/id"
+        },
+        "not_after": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "not_before": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "schema_version": {
+          "const": "agent-context-proof-authority-entry-v0.3.0"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "signature": {
+          "$ref": "#/$defs/signature"
+        }
+      },
+      "required": [
+        "schema_version",
+        "entry_id",
+        "entry_type",
+        "issuer_id",
+        "issuer_key_id",
+        "lineage_id",
+        "issuer_epoch",
+        "scope",
+        "issued_at",
+        "not_before",
+        "signature"
+      ],
+      "type": "object"
+    },
+    "claim": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base_entry"
+        },
+        {
+          "properties": {
+            "claim_name": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "claim_value": true,
+            "entry_type": {
+              "const": "claim"
+            }
+          },
+          "required": [
+            "claim_name",
+            "claim_value"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "delegation": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base_entry"
+        },
+        {
+          "properties": {
+            "entry_type": {
+              "const": "delegation"
+            },
+            "permissions": {
+              "items": {
+                "enum": [
+                  "claim",
+                  "delegate",
+                  "recover",
+                  "revoke",
+                  "rotate",
+                  "set_precedence"
+                ]
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "subject_epoch": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "subject_issuer_id": {
+              "$ref": "#/$defs/id"
+            },
+            "subject_key_id": {
+              "$ref": "#/$defs/key_id"
+            },
+            "subject_lineage_id": {
+              "$ref": "#/$defs/id"
+            },
+            "subject_public_key_base64url": {
+              "$ref": "#/$defs/public_key"
+            }
+          },
+          "required": [
+            "subject_issuer_id",
+            "subject_key_id",
+            "subject_public_key_base64url",
+            "subject_lineage_id",
+            "subject_epoch",
+            "permissions"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "id": {
+      "pattern": "^[a-z][a-z0-9_.-]*:[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+      "type": "string"
+    },
+    "key_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "precedence": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base_entry"
+        },
+        {
+          "properties": {
+            "entry_type": {
+              "const": "precedence"
+            },
+            "higher_issuer_id": {
+              "$ref": "#/$defs/id"
+            },
+            "lower_issuer_id": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "higher_issuer_id",
+            "lower_issuer_id"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "permissions": {
+      "items": {
+        "enum": [
+          "claim",
+          "delegate",
+          "recover",
+          "revoke",
+          "rotate",
+          "set_precedence"
+        ]
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "recovery": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base_entry"
+        },
+        {
+          "properties": {
+            "compromised_issuer_id": {
+              "$ref": "#/$defs/id"
+            },
+            "effective_at": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "entry_type": {
+              "const": "recovery"
+            },
+            "replacement_epoch": {
+              "maximum": 9007199254740991,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "replacement_issuer_id": {
+              "$ref": "#/$defs/id"
+            },
+            "replacement_key_id": {
+              "$ref": "#/$defs/key_id"
+            },
+            "replacement_lineage_id": {
+              "$ref": "#/$defs/id"
+            },
+            "replacement_permissions": {
+              "$ref": "#/$defs/permissions"
+            },
+            "replacement_public_key_base64url": {
+              "$ref": "#/$defs/public_key"
+            }
+          },
+          "required": [
+            "compromised_issuer_id",
+            "replacement_issuer_id",
+            "replacement_key_id",
+            "replacement_public_key_base64url",
+            "replacement_lineage_id",
+            "replacement_epoch",
+            "replacement_permissions",
+            "effective_at"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "revocation": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base_entry"
+        },
+        {
+          "properties": {
+            "effective_at": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "entry_type": {
+              "const": "revocation"
+            },
+            "target_entry_id": {
+              "$ref": "#/$defs/id"
+            },
+            "target_issuer_id": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "target_entry_id",
+            "target_issuer_id",
+            "effective_at"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "public_key": {
+      "pattern": "^[A-Za-z0-9_-]{43}$",
+      "type": "string"
+    },
+    "rotation": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/base_entry"
+        },
+        {
+          "properties": {
+            "entry_type": {
+              "const": "rotation"
+            },
+            "predecessor_entry_id": {
+              "$ref": "#/$defs/id"
+            },
+            "successor_epoch": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "successor_issuer_id": {
+              "$ref": "#/$defs/id"
+            },
+            "successor_key_id": {
+              "$ref": "#/$defs/key_id"
+            },
+            "successor_permissions": {
+              "$ref": "#/$defs/permissions"
+            },
+            "successor_public_key_base64url": {
+              "$ref": "#/$defs/public_key"
+            }
+          },
+          "required": [
+            "predecessor_entry_id",
+            "successor_issuer_id",
+            "successor_key_id",
+            "successor_public_key_base64url",
+            "successor_permissions",
+            "successor_epoch"
+          ]
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "scope": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "minLength": 1,
+          "pattern": "^\\*$|^[^*]+$",
+          "type": "string"
+        },
+        "artifact": {
+          "minLength": 1,
+          "pattern": "^\\*$|^[^*]+$",
+          "type": "string"
+        },
+        "organization": {
+          "minLength": 1,
+          "pattern": "^\\*$|^[^*]+$",
+          "type": "string"
+        },
+        "repository": {
+          "minLength": 1,
+          "pattern": "^\\*$|^[^*]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "organization",
+        "repository",
+        "artifact",
+        "action"
+      ],
+      "type": "object"
+    },
+    "signature": {
+      "additionalProperties": false,
+      "properties": {
+        "key_id": {
+          "$ref": "#/$defs/key_id"
+        },
+        "value": {
+          "pattern": "^[A-Za-z0-9_-]{86}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key_id",
+        "value"
+      ],
+      "type": "object"
+    },
+    "timestamp": {
+      "format": "date-time",
+      "pattern": "Z$",
+      "type": "string"
+    }
+  },
+  "$id": "https://github.com/heronyogi/agent-context-proof/docs/authority-ledger-entry.v0.3.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/claim"
+    },
+    {
+      "$ref": "#/$defs/delegation"
+    },
+    {
+      "$ref": "#/$defs/precedence"
+    },
+    {
+      "$ref": "#/$defs/recovery"
+    },
+    {
+      "$ref": "#/$defs/revocation"
+    },
+    {
+      "$ref": "#/$defs/rotation"
+    }
+  ],
+  "title": "Agent Context Proof v0.3 authority-ledger entry"
+}

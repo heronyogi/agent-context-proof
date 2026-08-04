@@ -24,6 +24,11 @@ independent review of:
 - [`docs/proof-protocol.v0.3.json`](docs/proof-protocol.v0.3.json); and
 - [`docs/case-authoring.v0.3.md`](docs/case-authoring.v0.3.md).
 
+The draft now also pins strict
+[`authority-ledger entry`](docs/authority-ledger-entry.v0.3.schema.json) and
+[`bundle`](docs/authority-ledger-bundle.v0.3.schema.json) schemas plus
+reproducible [Ed25519/JCS reference vectors](docs/authority-ledger.v0.3.vectors.json).
+
 ## What v0.2 tests
 
 The model does not own release facts or authorization. One deterministic,

@@ -35,7 +35,7 @@ Every oracle and evaluated path must report three separate fields.
 | Value | Meaning |
 | --- | --- |
 | `READY` | Authority is valid, the mechanism is conformant, and every governed evidence requirement is satisfied. |
-| `HOLD` | Authority is valid and the mechanism is conformant, but governed evidence is missing or conflicts with policy. |
+| `HOLD` | Authority is valid and the mechanism is conformant, but governed evidence is proven absent or definitively fails policy. |
 | `INDETERMINATE` | Authority or mechanism validity cannot be established, or required governed material cannot be safely evaluated. |
 | `AUTHORITY_CONFLICT` | Two or more independently valid, non-dominated authority chains authorize incompatible outcomes. |
 
@@ -62,7 +62,7 @@ by asserting a value.
 | Value | Meaning |
 | --- | --- |
 | `VALID` | One current, non-revoked, scope-authorized authority chain validates under the independent synthetic authority ledger. |
-| `INVALID` | A specific authority claim fails signature, scope, time, rotation, rollback, or revocation validation. |
+| `INVALID` | No valid matching claim remains, at least one matching claim definitively fails validation, and no unresolved record could alter the outcome. |
 | `CONFLICT` | Multiple valid, non-dominated authority chains authorize incompatible outcomes. |
 | `INDETERMINATE` | Available validation material cannot establish validity, invalidity, or conflict. |
 
@@ -77,10 +77,10 @@ authority finding nor a release decision from that record is trusted.
 | Rule ID | Disposition | Mechanism | Authority | Normative rule |
 | --- | --- | --- | --- | --- |
 | `V1_READY` | `READY` | `CONFORMANT` | `VALID` | All governed evidence requirements are satisfied. |
-| `V2_HOLD` | `HOLD` | `CONFORMANT` | `VALID` | A governed evidence requirement is missing or contradicted. |
+| `V2_HOLD` | `HOLD` | `CONFORMANT` | `VALID` | A governed evidence requirement is proven absent or definitively false. |
 | `V3_EVIDENCE_UNKNOWN` | `INDETERMINATE` | `CONFORMANT` | `VALID` | Authority is valid but the governed evidence claim cannot be safely resolved. |
 | `V4_AUTHORITY_CONFLICT` | `AUTHORITY_CONFLICT` | `CONFORMANT` | `CONFLICT` | The conflict algorithm finds incompatible undominated valid claims. |
-| `V5_AUTHORITY_INVALID` | `INDETERMINATE` | `CONFORMANT` | `INVALID` | A specific authority claim is proven invalid, so no release decision is permitted. |
+| `V5_AUTHORITY_INVALID` | `INDETERMINATE` | `CONFORMANT` | `INVALID` | No valid matching claim remains and a matching claim is definitively invalid; no release decision is permitted. |
 | `V6_AUTHORITY_UNKNOWN` | `INDETERMINATE` | `CONFORMANT` | `INDETERMINATE` | Authority validity cannot be established. |
 | `V7_MECHANISM_NONCONFORMANT` | `INDETERMINATE` | `NONCONFORMANT` | `INDETERMINATE` | Detected end-to-end rule deviation makes the record and its authority finding untrustworthy. |
 | `V8_MECHANISM_UNKNOWN` | `INDETERMINATE` | `INDETERMINATE` | `INDETERMINATE` | Insufficient execution evidence makes the record and its authority finding untrustworthy. |
@@ -105,21 +105,97 @@ drift.
 
 | Primitive | Normative requirement |
 | --- | --- |
-| `canonicalization` | Canonicalize every signed payload with RFC 8785 JCS; omit only the top-level signature member before signing or verification. |
+| `canonicalization` | Parse strict I-JSON with duplicate member names rejected, validate the entry schema, remove only the top-level signature member, and canonicalize the remaining payload with RFC 8785 JCS. |
 | `signature` | Use Ed25519 over the UTF-8 JCS bytes; encode signatures as unpadded base64url and key IDs as sha256:<lowercase hex SHA-256 of the 32 raw public-key bytes>. |
 | `time` | Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end. |
 | `scope` | Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; specificity never creates implicit precedence. |
 | `epoch` | Use non-negative integers comparable only within one lineage; accept only a predecessor-signed successor at predecessor epoch plus one, and let the highest validated effective epoch dominate older lineage entries. |
 | `revocation` | A valid revocation applies at and after effective_at, including to signatures made earlier; it must be signed by a then-valid authority whose scope grants revoke for the target. |
-| `rollback` | At validation time, presenting an entry below the highest validated effective epoch in its lineage is INVALID even when that entry was valid earlier. |
+| `rollback` | Externally committed lineage heads pin the expected effective epoch and payload; a lower or different presented head is rollback and INVALID, while historical transition records remain chain provenance. |
 | `precedence` | Represent precedence only as signed, scoped, time-bounded higher_issuer_id to lower_issuer_id edges; apply transitive closure, and treat an active cycle as INDETERMINATE. |
 | `recovery` | A suspected root cannot authenticate its own recovery; recovery or compromise resolution must chain to a separately supplied recovery trust anchor. |
 
+### Ledger entry types
+
+The committed entry and bundle schemas are
+[`authority-ledger-entry.v0.3.schema.json`](authority-ledger-entry.v0.3.schema.json)
+and
+[`authority-ledger-bundle.v0.3.schema.json`](authority-ledger-bundle.v0.3.schema.json).
+The following table is normative and mirrored in the machine protocol.
+
+| Entry type | Required type-specific fields | Authority rule |
+| --- | --- | --- |
+| `delegation` | `subject_issuer_id`, `subject_key_id`, `subject_public_key_base64url`, `subject_lineage_id`, `subject_epoch`, `permissions` | The signer must be current at issued_at and hold delegate permission for the matching scope; permissions are unique and Unicode-code-point sorted. |
+| `rotation` | `predecessor_entry_id`, `successor_issuer_id`, `successor_key_id`, `successor_public_key_base64url`, `successor_permissions`, `successor_epoch` | The current predecessor signs one successor in the same lineage at issuer_epoch plus one; it becomes effective at not_before. |
+| `revocation` | `target_entry_id`, `target_issuer_id`, `effective_at` | A signer valid immediately before issued_at must hold revoke permission; the target is revoked when validation_time is at or after effective_at. |
+| `precedence` | `higher_issuer_id`, `lower_issuer_id` | A current signer with set_precedence permission creates one directed edge only for matching scope and the entry validity interval. |
+| `recovery` | `compromised_issuer_id`, `replacement_issuer_id`, `replacement_key_id`, `replacement_public_key_base64url`, `replacement_lineage_id`, `replacement_epoch`, `replacement_permissions`, `effective_at` | The signer must resolve from the separate recovery trust-anchor set with recover permission and must not descend from the compromised lineage. |
+| `claim` | `claim_name`, `claim_value` | The signer must be current at validation_time and hold claim permission for the complete case coordinate. |
+
+Every entry carries the common fields pinned by the entry schema. Trust anchors
+are external bundle inputs, not self-signed ledger entries. A `rotation` is the
+only ordinary successor endorsement: its signer is the current predecessor, its
+`issuer_epoch` is the predecessor epoch, its successor remains in the same
+`lineage_id`, and `successor_epoch` equals `issuer_epoch + 1`. Different
+successors at the same next epoch make that lineage `INDETERMINATE`.
+`successor_permissions` and `replacement_permissions` must be
+Unicode-code-point sorted. Successor permissions may only preserve or narrow
+the predecessor set. Recovery replacements may only preserve or narrow the
+recovery anchor's externally committed `replacement_permissions_ceiling`; neither transition
+may silently expand authority.
+
+Permissions are explicit. Ordinary trust anchors, recovery trust anchors, and
+delegations grant only their listed permissions. A recovery signer must resolve
+from `recovery_trust_anchors`; membership in the compromised lineage cannot
+authorize recovery.
+
+### Ledger validation order
+
+| Rule ID | Normative operation |
+| --- | --- |
+| `L1_PARSE` | Parse strict I-JSON, rejecting duplicate member names, malformed Unicode, non-finite numbers, and unsafe numeric values. |
+| `L2_SCHEMA` | Validate the bundle and every entry against the committed v0.3 schemas before using any field. |
+| `L3_CANONICALIZE` | Remove exactly the top-level signature member and compute the RFC 8785 JCS UTF-8 payload and its SHA-256 digest. |
+| `L4_KEY_RESOLUTION` | Resolve signature.key_id uniquely from an external trust anchor or an already valid delegation, rotation, or recovery record; require it to equal issuer_key_id and the digest of the raw public key. |
+| `L5_SIGNATURE` | Verify the 64 raw Ed25519 signature bytes over the canonical payload before evaluating authority semantics. |
+| `L6_AUTHORIZATION` | At issued_at, require the signer to be current, unrevoked, in scope, and authorized for the entry-type permission. |
+| `L7_BOUNDARIES` | Process rotations, revocations, and recoveries in effective-time batches; authorize each batch from the state immediately before its boundary and apply the batch simultaneously. |
+| `L8_LINEAGE` | Build predecessor-linked epochs, reject unlinked increments and rollback, and return INDETERMINATE for competing successors at the same next epoch. |
+| `L9_RESOLUTION` | At validation_time, evaluate active precedence and current claims only after ledger state, scope, and lineage are fixed. |
+
+Strict I-JSON parsing rejects duplicate member names before schema validation.
+The signature payload is the UTF-8 RFC 8785 JCS serialization after removing
+exactly the top-level `signature` member. `signature.key_id` must equal
+`issuer_key_id` and `sha256:<lowercase hex>` of the raw 32-byte public key. The
+signature value is the unpadded base64url encoding of the raw 64-byte Ed25519
+signature.
+
+The deterministic golden records in
+[`authority-ledger.v0.3.vectors.json`](authority-ledger.v0.3.vectors.json)
+cover every entry type. Their private-key seeds are public, synthetic test
+material only. `.venv/bin/python scripts/generate_authority_vectors.py --check`
+must reproduce their canonical bytes, digests, keys, and signatures exactly.
+
 Epoch numbers are not comparable across lineages, and an unlinked higher number
-does not establish a rotation. Two different payloads at the same lineage and
-epoch make authority validation `INDETERMINATE`. A revocation takes effect on
-its boundary: an earlier signature is not grandfathered when evaluated at or
-after that time.
+does not establish a rotation. Different successor issuer/key tuples at the
+same lineage and next epoch make authority validation `INDETERMINATE`;
+compatible endorsements of the same tuple do not. Each bundle carries external
+lineage-head pins over lineage, epoch, record ID, and canonical payload digest.
+At epoch zero, the head record is a trust anchor or valid delegation; at later
+epochs it is a valid rotation or recovery. A compatible same-epoch
+re-endorsement does not change the head. Anchor IDs and entry IDs must be unique
+across the bundle. The digest is SHA-256 of the UTF-8 RFC 8785 JCS head record,
+with its top-level signature removed when present.
+
+A pin is required for every signer lineage and every endpoint issuer lineage of
+a potentially matching claim or active precedence entry at `validation_time`;
+absence of such a pin fails bundle validation rather than silently accepting an
+uncommitted head.
+A lower epoch or different head at the committed epoch is `INVALID` rollback.
+Historical transition records remain necessary chain provenance, but a claim or
+active precedence signer below the current effective epoch cannot act as
+current authority. A revocation takes effect on its boundary: an earlier
+signature is not grandfathered when evaluated at or after that time.
 
 A root cannot prove its own recovery after compromise. When no independent
 recovery or revocation channel is available, the correct authority status is
@@ -138,8 +214,8 @@ The resolver executes these steps in order:
 | Order | Rule ID | Normative operation |
 | --- | --- | --- |
 | 1 | `C1_COORDINATE` | Freeze one validation time and resolve one complete scope coordinate plus claim name. |
-| 2 | `C2_VALIDATE` | Validate ledger parsing, canonical bytes, signatures, delegation, scope, time, revocation, rotation, and rollback before comparing claims. |
-| 3 | `C3_FILTER` | Discard invalid chains and claims that do not match the complete case coordinate or validation time. |
+| 2 | `C2_VALIDATE` | Validate ledger parsing, canonical bytes, signatures, delegation, scope, time, revocation, rotation, and rollback; classify each potentially matching record as valid, invalid, or unresolved. |
+| 3 | `C3_FILTER` | Discard definitively invalid and nonmatching records; if an unresolved record could match or dominate the decision key, return INDETERMINATE. |
 | 4 | `C4_DEDUPLICATE` | Collapse claims with the same decision key and byte-identical RFC 8785 JCS claim value. |
 | 5 | `C5_LINEAGE` | Within each lineage, retain only claims at its highest validated effective epoch. |
 | 6 | `C6_PRECEDENCE` | Apply the transitive closure of active explicit precedence edges and remove every dominated claim. |
@@ -153,6 +229,50 @@ implies precedence. An active cycle or an unverifiable precedence edge makes the
 authority result `INDETERMINATE`; it is not an authority conflict. Records whose
 scope or half-open time intervals do not contain the case coordinate and frozen
 validation time do not compete. Invalid chains cannot create a conflict.
+
+## Oracle classification boundary
+
+Oracle authors apply mechanism, authority, and evidence rules in that order.
+They record the applicable rule IDs in the sealed oracle record. An author may
+not choose a safer-sounding label outside these tables.
+
+### Authority classification
+
+| Rule ID | Condition | Authority status | Disposition route |
+| --- | --- | --- | --- |
+| `OA1_VALID` | At least one valid undominated claim matches the decision key, all valid maxima have one canonical value, and no unresolved record could match or dominate it. | `VALID` | `EVIDENCE_CLASSIFICATION` |
+| `OA2_CONFLICT` | At least two valid undominated claims match the decision key and have unequal RFC 8785 JCS claim values. | `CONFLICT` | `AUTHORITY_CONFLICT` |
+| `OA3_INVALID` | No valid matching claim remains, at least one matching claim is definitively invalid, and no unresolved record could supply or alter the outcome. | `INVALID` | `INDETERMINATE` |
+| `OA4_UNKNOWN` | Authority input is incomplete or unparseable, a cycle or unresolved record could alter the outcome, or neither a valid nor definitively invalid matching claim can be established. | `INDETERMINATE` | `INDETERMINATE` |
+
+Invalid or out-of-scope claims are recorded but cannot create a conflict. One
+valid result plus a definitively invalid competitor uses `OA1_VALID`; one valid
+result plus an unresolved potentially competing record uses `OA4_UNKNOWN`.
+Ambiguous ownership is `OA2_CONFLICT` only when two valid, current,
+non-dominated owner claims share the complete decision key and have unequal
+canonical values. Equal values are compatible, explicit active precedence
+selects its winner, and unverifiable ownership is `OA4_UNKNOWN`.
+
+### Evidence classification
+
+Evidence classification occurs only after `OA1_VALID`.
+
+| Rule ID | Condition | Evidence state | Disposition |
+| --- | --- | --- | --- |
+| `OE1_REQUIRED_ABSENT` | A complete authenticated inventory proves that required governed evidence is absent. | `UNSATISFIED` | `HOLD` |
+| `OE2_POLICY_FALSE` | Parseable, schema-valid, semantically mapped evidence definitively violates an explicit policy predicate. | `UNSATISFIED` | `HOLD` |
+| `OE3_TRUST_OR_TIME_FALSE` | Parseable evidence definitively has an unauthorized producer, wrong artifact binding, or validity interval excluding validation_time. | `UNSATISFIED` | `HOLD` |
+| `OE4_UNREADABLE` | Required evidence exists but cannot be parsed, schema-validated, decoded, or read safely. | `UNKNOWN` | `INDETERMINATE` |
+| `OE5_UNRESOLVED_CONTRADICTION` | Two or more trusted evidence records disagree on a governed field and no explicit precedence or combine rule resolves them. | `UNKNOWN` | `INDETERMINATE` |
+| `OE6_SEMANTICALLY_UNJUDGEABLE` | Evidence is syntactically valid but the policy supplies no deterministic mapping from its claim to true or false. | `UNKNOWN` | `INDETERMINATE` |
+| `OE7_INVENTORY_UNKNOWN` | Repository or evidence inventory completeness cannot be established, so absence cannot be proven. | `UNKNOWN` | `INDETERMINATE` |
+| `OE8_ALL_SATISFIED` | Every governed requirement is deterministically satisfied and no requirement is UNKNOWN or UNSATISFIED. | `SATISFIED` | `READY` |
+
+For multiple governed requirements, `UNKNOWN` dominates `UNSATISFIED`, which
+dominates `SATISFIED`. Thus one malformed requirement plus one definitely
+missing requirement is `INDETERMINATE`, while a complete inventory proving
+absence with no unknown requirement is `HOLD`. A validly signed free-form claim
+without a policy mapping is semantically unjudgeable, not negative evidence.
 
 ## Planned case families
 
@@ -232,6 +352,29 @@ must continue to be labeled a reasoning baseline, not retrieval-plus-rules.
   revealed and reported with its reason.
 - Comparator underperformance is not required for the governed proof to pass.
 
+## Scoring population
+
+The rules below define “every evaluated case” and are mirrored in the machine
+protocol.
+
+| Rule ID | Normative rule |
+| --- | --- |
+| `P1_CANDIDATES` | The candidate population is every case ID in the digest-committed sealed input pack. |
+| `P2_INCLUDE` | Include a candidate only when it passed blinded leakage review before pack commitment and passes structural validation before any path executes. |
+| `P3_EXCLUDE` | Freeze exclusions, reasons, and their digest before first path execution and oracle reveal; publish every exclusion. |
+| `P4_DENOMINATOR` | Every evaluated case means every included unique case ID, and that fixed set is the governed case-accuracy denominator. |
+| `P5_GOVERNED_FAILURE` | A missing, errored, or schema-invalid governed output is a failed included case and never an exclusion. |
+| `P6_REPEATS` | Every governed repeat must match; case accuracy uses unique cases while the raw repeat matrix is reported separately. |
+| `P7_COMPARATORS` | Run required comparators on the same included cases and report missing outputs and all metrics, but comparator accuracy never changes governed pass or fail. |
+| `P8_NO_POST_REVEAL` | No output, trace, model behavior, or revealed oracle label may cause exclusion from the frozen population. |
+| `P9_FLOORS` | No pass claim is permitted unless at least twelve cases, four eligible primary authors, and four independence clusters remain after exclusions. |
+
+The governed path is the only proof-gating path. The independent
+retrieval-plus-rules comparator is required to run and report coverage on the
+same included case set, but neither its errors nor its successes change the
+governed pass result. Missing comparator outputs remain visible as missing
+coverage. Full-packet reasoning remains optional and descriptive.
+
 ## Metrics
 
 Primary metrics are reported by case and independent family:
@@ -274,7 +417,8 @@ inferential interval.
 
 ## Pass conditions
 
-The governed v0.3 path passes the fixed synthetic protocol only if:
+The governed v0.3 path—and only that path—passes the fixed synthetic protocol
+only if:
 
 1. every evaluated case jointly matches all three oracle fields;
 2. no non-ready case returns `READY`;
@@ -288,7 +432,13 @@ The governed v0.3 path passes the fixed synthetic protocol only if:
 9. at least four eligible primary authors and four independence clusters remain
    after conflict and shared-source adjudication; and
 10. the compact result is bound to all case, prompt, rule, code, authority-ledger,
-   and trust-input digests.
+    and trust-input digests;
+11. every included governed repeat matches and a missing or errored governed
+    output counts as a failure; and
+12. the population and exclusion rules `P1` through `P9` hold, with no
+    post-reveal exclusion.
+
+Comparator accuracy and comparator underperformance are never proof-gating.
 
 These conditions establish execution on the measured synthetic matrix only.
 They do not establish production security or real-world authority legitimacy.
