@@ -39,7 +39,7 @@
           "$ref": "#/$defs/timestamp"
         },
         "schema_version": {
-          "const": "agent-context-proof-authority-entry-v0.3.0"
+          "const": "agent-context-proof-authority-entry-v0.3.1"
         },
         "scope": {
           "$ref": "#/$defs/scope"
@@ -200,15 +200,21 @@
             "compromised_issuer_id": {
               "$ref": "#/$defs/id"
             },
+            "compromised_lineage_id": {
+              "$ref": "#/$defs/id"
+            },
             "effective_at": {
               "$ref": "#/$defs/timestamp"
             },
             "entry_type": {
               "const": "recovery"
             },
+            "predecessor_entry_id": {
+              "$ref": "#/$defs/id"
+            },
             "replacement_epoch": {
               "maximum": 9007199254740991,
-              "minimum": 0,
+              "minimum": 1,
               "type": "integer"
             },
             "replacement_issuer_id": {
@@ -229,6 +235,8 @@
           },
           "required": [
             "compromised_issuer_id",
+            "compromised_lineage_id",
+            "predecessor_entry_id",
             "replacement_issuer_id",
             "replacement_key_id",
             "replacement_public_key_base64url",

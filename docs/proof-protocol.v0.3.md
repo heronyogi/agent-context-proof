@@ -107,7 +107,7 @@ drift.
 | --- | --- |
 | `canonicalization` | Parse strict I-JSON with duplicate member names rejected, validate the entry schema, remove only the top-level signature member, and canonicalize the remaining payload with RFC 8785 JCS. |
 | `signature` | Use Ed25519 over the UTF-8 JCS bytes; encode signatures as unpadded base64url and key IDs as sha256:<lowercase hex SHA-256 of the 32 raw public-key bytes>. |
-| `time` | Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end. |
+| `time` | Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end; authorize each entry once at issued_at, then apply an already-authorized delayed transition at its effective boundary without reauthorizing the signer. |
 | `scope` | Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; specificity never creates implicit precedence. |
 | `epoch` | Use non-negative integers comparable only within one lineage; accept only a predecessor-signed successor at predecessor epoch plus one, and let the highest validated effective epoch dominate older lineage entries. |
 | `revocation` | A valid revocation applies at and after effective_at, including to signatures made earlier; it must be signed by a then-valid authority whose scope grants revoke for the target. |
@@ -129,7 +129,7 @@ The following table is normative and mirrored in the machine protocol.
 | `rotation` | `predecessor_entry_id`, `successor_issuer_id`, `successor_key_id`, `successor_public_key_base64url`, `successor_permissions`, `successor_epoch` | The current predecessor signs one successor in the same lineage at issuer_epoch plus one; it becomes effective at not_before. |
 | `revocation` | `target_entry_id`, `target_issuer_id`, `effective_at` | A signer valid immediately before issued_at must hold revoke permission; the target is revoked when validation_time is at or after effective_at. |
 | `precedence` | `higher_issuer_id`, `lower_issuer_id` | A current signer with set_precedence permission creates one directed edge only for matching scope and the entry validity interval. |
-| `recovery` | `compromised_issuer_id`, `replacement_issuer_id`, `replacement_key_id`, `replacement_public_key_base64url`, `replacement_lineage_id`, `replacement_epoch`, `replacement_permissions`, `effective_at` | The signer must resolve from the separate recovery trust-anchor set with recover permission and must not descend from the compromised lineage. |
+| `recovery` | `compromised_issuer_id`, `compromised_lineage_id`, `predecessor_entry_id`, `replacement_issuer_id`, `replacement_key_id`, `replacement_public_key_base64url`, `replacement_lineage_id`, `replacement_epoch`, `replacement_permissions`, `effective_at` | The signer must resolve from the separate recovery trust-anchor set with recover permission; at effective_at, predecessor_entry_id must be the current head of compromised_lineage_id for compromised_issuer_id, replacement_lineage_id must equal that lineage, and replacement_epoch must equal the predecessor epoch plus one. |
 | `claim` | `claim_name`, `claim_value` | The signer must be current at validation_time and hold claim permission for the complete case coordinate. |
 
 Every entry carries the common fields pinned by the entry schema. Trust anchors
@@ -140,9 +140,10 @@ only ordinary successor endorsement: its signer is the current predecessor, its
 successors at the same next epoch make that lineage `INDETERMINATE`.
 `successor_permissions` and `replacement_permissions` must be
 Unicode-code-point sorted. Successor permissions may only preserve or narrow
-the predecessor set. Recovery replacements may only preserve or narrow the
-recovery anchor's externally committed `replacement_permissions_ceiling`; neither transition
-may silently expand authority.
+the predecessor set. Recovery replacements may only preserve or narrow both
+the predecessor permissions and the recovery anchor's externally committed
+`replacement_permissions_ceiling`; neither transition may silently expand
+authority.
 
 Permissions are explicit. Ordinary trust anchors, recovery trust anchors, and
 delegations grant only their listed permissions. A recovery signer must resolve
@@ -159,7 +160,7 @@ authorize recovery.
 | `L4_KEY_RESOLUTION` | Resolve signature.key_id uniquely from an external trust anchor or an already valid delegation, rotation, or recovery record; require it to equal issuer_key_id and the digest of the raw public key. |
 | `L5_SIGNATURE` | Verify the 64 raw Ed25519 signature bytes over the canonical payload before evaluating authority semantics. |
 | `L6_AUTHORIZATION` | At issued_at, require the signer to be current, unrevoked, in scope, and authorized for the entry-type permission. |
-| `L7_BOUNDARIES` | Process rotations, revocations, and recoveries in effective-time batches; authorize each batch from the state immediately before its boundary and apply the batch simultaneously. |
+| `L7_BOUNDARIES` | Group already-authorized rotations, revocations, and recoveries by effective boundary; from the state immediately before each boundary, check rotation and recovery predecessor preconditions without reauthorizing signers, then apply every eligible transition in the batch simultaneously. |
 | `L8_LINEAGE` | Build predecessor-linked epochs, reject unlinked increments and rollback, and return INDETERMINATE for competing successors at the same next epoch. |
 | `L9_RESOLUTION` | At validation_time, evaluate active precedence and current claims only after ledger state, scope, and lineage are fixed. |
 
@@ -171,10 +172,12 @@ signature value is the unpadded base64url encoding of the raw 64-byte Ed25519
 signature.
 
 The deterministic golden records in
-[`authority-ledger.v0.3.vectors.json`](authority-ledger.v0.3.vectors.json)
+[`authority-ledger.v0.3.vectors.json`](../tests/fixtures/authority-ledger.v0.3.vectors.json)
 cover every entry type. Their private-key seeds are public, synthetic test
-material only. `.venv/bin/python scripts/generate_authority_vectors.py --check`
-must reproduce their canonical bytes, digests, keys, and signatures exactly.
+material only and are deliberately isolated under `tests/fixtures`; they are
+not production authority data or credentials. `.venv/bin/python
+scripts/generate_authority_vectors.py --check` must reproduce their canonical
+bytes, digests, keys, and signatures exactly.
 
 Epoch numbers are not comparable across lineages, and an unlinked higher number
 does not establish a rotation. Different successor issuer/key tuples at the
@@ -197,6 +200,27 @@ active precedence signer below the current effective epoch cannot act as
 current authority. A revocation takes effect on its boundary: an earlier
 signature is not grandfathered when evaluated at or after that time.
 
+All entry signatures and permissions are authorized exactly once against the
+state immediately before `issued_at`. A delayed transition does not reauthorize
+its signer at `effective_at`. Immediately before a boundary, the resolver checks
+only transition preconditions: a rotation or recovery must still name the
+current predecessor head. A resolved mismatch is `INVALID`; missing material
+needed to decide the precondition is `INDETERMINATE`. Revocations have no
+current-signer precondition at the boundary and therefore remain effective even
+if their issuer later rotates out, provided the revocation was validly
+authorized when issued.
+
+For every entry, `issued_at` must be at or before `not_before`. For a delayed
+rotation, revocation, or recovery, `not_before` must be at or before its
+effective boundary, and that boundary must fall inside the entry's validity
+interval. A resolved ordering violation is `INVALID`.
+
+Recovery never creates an unrelated lineage in v0.3. Its predecessor must be
+the current head for `compromised_issuer_id` in `compromised_lineage_id`
+immediately before `effective_at`; the replacement remains in that lineage and
+advances the predecessor epoch by exactly one. Different valid replacements at
+the same next epoch make that lineage `INDETERMINATE`.
+
 A root cannot prove its own recovery after compromise. When no independent
 recovery or revocation channel is available, the correct authority status is
 `INDETERMINATE`, not `VALID` or `INVALID`.
@@ -216,10 +240,10 @@ The resolver executes these steps in order:
 | 1 | `C1_COORDINATE` | Freeze one validation time and resolve one complete scope coordinate plus claim name. |
 | 2 | `C2_VALIDATE` | Validate ledger parsing, canonical bytes, signatures, delegation, scope, time, revocation, rotation, and rollback; classify each potentially matching record as valid, invalid, or unresolved. |
 | 3 | `C3_FILTER` | Discard definitively invalid and nonmatching records; if an unresolved record could match or dominate the decision key, return INDETERMINATE. |
-| 4 | `C4_DEDUPLICATE` | Collapse claims with the same decision key and byte-identical RFC 8785 JCS claim value. |
-| 5 | `C5_LINEAGE` | Within each lineage, retain only claims at its highest validated effective epoch. |
-| 6 | `C6_PRECEDENCE` | Apply the transitive closure of active explicit precedence edges and remove every dominated claim. |
-| 7 | `C7_MAXIMA` | Compute the remaining undominated claims; disjoint scope or time records never compete at the case coordinate. |
+| 4 | `C4_LINEAGE` | Within each lineage, retain only individual claims at its highest validated effective epoch; do not merge claims from different issuers or lineages. |
+| 5 | `C5_PRECEDENCE` | Apply the transitive closure of active explicit precedence edges to individual claims and remove each dominated claim. |
+| 6 | `C6_MAXIMA` | Compute the remaining undominated individual claims; disjoint scope or time records never compete at the case coordinate. |
+| 7 | `C7_DEDUPLICATE` | Group remaining maxima only when they have the same decision key and byte-identical RFC 8785 JCS claim value, retaining every constituent issuer, lineage, claim entry, and provenance chain. |
 | 8 | `C8_CLASSIFY` | Return CONFLICT only when at least two undominated valid claims share a decision key and have unequal canonical values; otherwise return the single compatible outcome. |
 
 Precedence exists only through an active, valid, signed
@@ -229,6 +253,9 @@ implies precedence. An active cycle or an unverifiable precedence edge makes the
 authority result `INDETERMINATE`; it is not an authority conflict. Records whose
 scope or half-open time intervals do not contain the case coordinate and frozen
 validation time do not compete. Invalid chains cannot create a conflict.
+Equal-valued claims remain separate through lineage and precedence resolution.
+Only undominated maxima are grouped, and grouping never discards the identities
+or provenance of constituent claims.
 
 ## Oracle classification boundary
 
@@ -297,6 +324,13 @@ evidence; `unevaluated_stages` must be an ordered suffix of that sequence. The
 governed output must match all ordered values and digests exactly. The machine
 contract pins the required fields for the provenance object, authority-chain
 items, authority records, and file records.
+
+Array ordering is canonical. `authority_chains` sort by the Unicode-code-point
+tuple `(issuer_id, claim_entry_id)`. Contract and evidence records sort by
+`(path, sha256)`. Records inside one authority chain retain semantic chain order
+from anchor or delegation to claim, and `unevaluated_stages` retains stage
+order. Two outputs with identical members in a different order are not both
+canonical.
 
 ## Planned case families
 

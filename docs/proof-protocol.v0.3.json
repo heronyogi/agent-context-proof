@@ -11,7 +11,7 @@
       },
       {
         "id": "time",
-        "requirement": "Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end."
+        "requirement": "Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end; authorize each entry once at issued_at, then apply an already-authorized delayed transition at its effective boundary without reauthorizing the signer."
       },
       {
         "id": "scope",
@@ -84,6 +84,8 @@
         "entry_type": "recovery",
         "required_fields": [
           "compromised_issuer_id",
+          "compromised_lineage_id",
+          "predecessor_entry_id",
           "replacement_issuer_id",
           "replacement_key_id",
           "replacement_public_key_base64url",
@@ -92,7 +94,7 @@
           "replacement_permissions",
           "effective_at"
         ],
-        "rule": "The signer must resolve from the separate recovery trust-anchor set with recover permission and must not descend from the compromised lineage."
+        "rule": "The signer must resolve from the separate recovery trust-anchor set with recover permission; at effective_at, predecessor_entry_id must be the current head of compromised_lineage_id for compromised_issuer_id, replacement_lineage_id must equal that lineage, and replacement_epoch must equal the predecessor epoch plus one."
       },
       {
         "entry_type": "claim",
@@ -110,7 +112,7 @@
       "number_serialization": "RFC8785_ECMASCRIPT",
       "unicode": "well_formed_Unicode_only"
     },
-    "reference_vectors": "docs/authority-ledger.v0.3.vectors.json",
+    "reference_vectors": "tests/fixtures/authority-ledger.v0.3.vectors.json",
     "schema_files": {
       "bundle": "docs/authority-ledger-bundle.v0.3.schema.json",
       "entry": "docs/authority-ledger-entry.v0.3.schema.json"
@@ -125,6 +127,10 @@
       "signed_payload": "utf8_jcs(entry_without_top_level_signature_member)"
     },
     "time_profile": {
+      "boundary_must_be_within_validity_interval": true,
+      "delayed_transition_application": "apply_at_effective_boundary_without_signer_reauthorization",
+      "delayed_transition_time_order": "issued_at_at_or_before_not_before_at_or_before_effective_boundary",
+      "entry_authorization_time": "state_immediately_before_issued_at",
       "format": "UTC_RFC3339_Z",
       "interval": "[not_before,not_after)",
       "revocation_effective_boundary": "inclusive",
@@ -152,9 +158,16 @@
       "unlinked_higher_epoch": "INVALID"
     },
     "recovery_profile": {
+      "authorization_time": "state_immediately_before_issued_at",
+      "boundary_precondition_failure": "INVALID_if_resolved_mismatch_else_INDETERMINATE",
       "compromised_lineage_may_self_recover": false,
       "effective_boundary": "inclusive",
-      "replacement_permissions_source": "recovery_trust_anchor.replacement_permissions_ceiling",
+      "new_lineage_allowed": false,
+      "parallel_different_replacements": "INDETERMINATE",
+      "predecessor_rule": "predecessor_entry_id_is_current_head_of_compromised_lineage_id_for_compromised_issuer_id_immediately_before_effective_at",
+      "replacement_epoch_rule": "predecessor_epoch_plus_one",
+      "replacement_lineage_rule": "same_as_compromised_lineage_id",
+      "replacement_permissions_source": "intersection_of_predecessor_permissions_and_recovery_trust_anchor.replacement_permissions_ceiling",
       "trust_anchor_set": "recovery_trust_anchors"
     },
     "rollback_profile": {
@@ -177,6 +190,7 @@
       "authorization_time": "state_immediately_before_issued_at",
       "earlier_signatures_grandfathered": false,
       "effective_boundary": "inclusive",
+      "signer_reauthorized_at_effective_boundary": false,
       "same_boundary_application": "simultaneous_batch"
     },
     "precedence_profile": {
@@ -218,7 +232,7 @@
       },
       {
         "id": "L7_BOUNDARIES",
-        "rule": "Process rotations, revocations, and recoveries in effective-time batches; authorize each batch from the state immediately before its boundary and apply the batch simultaneously."
+        "rule": "Group already-authorized rotations, revocations, and recoveries by effective boundary; from the state immediately before each boundary, check rotation and recovery predecessor preconditions without reauthorizing signers, then apply every eligible transition in the batch simultaneously."
       },
       {
         "id": "L8_LINEAGE",
@@ -371,25 +385,32 @@
         "rule": "Discard definitively invalid and nonmatching records; if an unresolved record could match or dominate the decision key, return INDETERMINATE."
       },
       {
-        "id": "C4_DEDUPLICATE",
-        "rule": "Collapse claims with the same decision key and byte-identical RFC 8785 JCS claim value."
+        "id": "C4_LINEAGE",
+        "rule": "Within each lineage, retain only individual claims at its highest validated effective epoch; do not merge claims from different issuers or lineages."
       },
       {
-        "id": "C5_LINEAGE",
-        "rule": "Within each lineage, retain only claims at its highest validated effective epoch."
+        "id": "C5_PRECEDENCE",
+        "rule": "Apply the transitive closure of active explicit precedence edges to individual claims and remove each dominated claim."
       },
       {
-        "id": "C6_PRECEDENCE",
-        "rule": "Apply the transitive closure of active explicit precedence edges and remove every dominated claim."
+        "id": "C6_MAXIMA",
+        "rule": "Compute the remaining undominated individual claims; disjoint scope or time records never compete at the case coordinate."
       },
       {
-        "id": "C7_MAXIMA",
-        "rule": "Compute the remaining undominated claims; disjoint scope or time records never compete at the case coordinate."
+        "id": "C7_DEDUPLICATE",
+        "rule": "Group remaining maxima only when they have the same decision key and byte-identical RFC 8785 JCS claim value, retaining every constituent issuer, lineage, claim entry, and provenance chain."
       },
       {
         "id": "C8_CLASSIFY",
         "rule": "Return CONFLICT only when at least two undominated valid claims share a decision key and have unequal canonical values; otherwise return the single compatible outcome."
       }
+    ],
+    "deduplication_timing": "after_lineage_precedence_and_maxima",
+    "deduplicated_group_retains": [
+      "issuer_id",
+      "lineage_id",
+      "claim_entry_id",
+      "provenance_chain"
     ],
     "precedence_cycle_result": "INDETERMINATE",
     "scope_or_time_disjoint_result": "not_a_conflict",
@@ -535,6 +556,13 @@
     "proof_gating_path": "governed"
   },
   "provenance_contract": {
+    "array_ordering": {
+      "authority_chains": "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id)",
+      "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
+      "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
+      "records_within_authority_chain": "semantic_chain_order_from_anchor_or_delegation_to_claim",
+      "unevaluated_stages": "stage_order_suffix"
+    },
     "authority_chain_required_fields": [
       "issuer_id",
       "claim_entry_id",
@@ -586,7 +614,7 @@
     ],
     "unevaluated_stages_rule": "ordered_suffix_of_stage_order"
   },
-  "schema_version": "agent-context-proof-protocol-v0.3.3",
+  "schema_version": "agent-context-proof-protocol-v0.3.4",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",

@@ -1,5 +1,7 @@
 name: CI
 
+# Automatic, offline proof checks. No model API key is available to this job.
+
 on:
   pull_request:
   push:

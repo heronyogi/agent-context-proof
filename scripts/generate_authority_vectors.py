@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate deterministic, synthetic v0.3 authority-ledger vectors."""
+"""Generate public, test-only synthetic v0.3 authority-ledger vectors."""
 
 from __future__ import annotations
 
@@ -15,9 +15,9 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "docs" / "authority-ledger.v0.3.vectors.json"
-SCHEMA_VERSION = "agent-context-proof-authority-entry-v0.3.0"
-VECTOR_VERSION = "agent-context-proof-authority-vectors-v0.3.0"
+OUTPUT = ROOT / "tests" / "fixtures" / "authority-ledger.v0.3.vectors.json"
+SCHEMA_VERSION = "agent-context-proof-authority-entry-v0.3.1"
+VECTOR_VERSION = "agent-context-proof-authority-vectors-v0.3.1"
 SCOPE = {
     "action": "release",
     "artifact": "release:orion:1.0.0",
@@ -150,7 +150,13 @@ def build_vectors() -> dict[str, Any]:
         "authority:release-council",
         "lineage:release-council",
     )
-    keys = [root, successor, recovery, delegate]
+    recovered = _key(
+        "recovered",
+        128,
+        "authority:root-a-recovered",
+        "lineage:root-a",
+    )
+    keys = [root, successor, recovery, delegate, recovered]
 
     delegation = _base(
         entry_id="entry:delegation-release-council",
@@ -203,49 +209,53 @@ def build_vectors() -> dict[str, Any]:
         }
     )
 
-    precedence = _base(
-        entry_id="entry:precedence-successor-over-council",
-        entry_type="precedence",
-        issuer=successor,
-        issuer_epoch=1,
-        issued_at="2030-03-02T00:00:00Z",
-        not_before="2030-03-02T00:00:00Z",
-    )
-    precedence.update(
-        {
-            "higher_issuer_id": successor["issuer_id"],
-            "lower_issuer_id": delegate["issuer_id"],
-        }
-    )
-
     recovery_entry = _base(
         entry_id="entry:recovery-root-a",
         entry_type="recovery",
         issuer=recovery,
         issuer_epoch=0,
+        issued_at="2030-04-01T00:00:00Z",
+        not_before="2030-04-01T00:00:00Z",
     )
     recovery_entry.update(
         {
-            "compromised_issuer_id": root["issuer_id"],
+            "compromised_issuer_id": successor["issuer_id"],
+            "compromised_lineage_id": successor["lineage_id"],
             "effective_at": "2030-05-01T00:00:00Z",
-            "replacement_epoch": 1,
-            "replacement_issuer_id": successor["issuer_id"],
-            "replacement_key_id": successor["key_id"],
-            "replacement_lineage_id": successor["lineage_id"],
+            "predecessor_entry_id": rotation["entry_id"],
+            "replacement_epoch": 2,
+            "replacement_issuer_id": recovered["issuer_id"],
+            "replacement_key_id": recovered["key_id"],
+            "replacement_lineage_id": recovered["lineage_id"],
             "replacement_permissions": ROOT_PERMISSIONS,
-            "replacement_public_key_base64url": successor[
+            "replacement_public_key_base64url": recovered[
                 "public_key_base64url"
             ],
+        }
+    )
+
+    precedence = _base(
+        entry_id="entry:precedence-recovered-over-council",
+        entry_type="precedence",
+        issuer=recovered,
+        issuer_epoch=2,
+        issued_at="2030-05-02T00:00:00Z",
+        not_before="2030-05-02T00:00:00Z",
+    )
+    precedence.update(
+        {
+            "higher_issuer_id": recovered["issuer_id"],
+            "lower_issuer_id": delegate["issuer_id"],
         }
     )
 
     claim = _base(
         entry_id="entry:claim-release-owner",
         entry_type="claim",
-        issuer=successor,
-        issuer_epoch=1,
-        issued_at="2030-03-02T00:00:00Z",
-        not_before="2030-03-01T00:00:00Z",
+        issuer=recovered,
+        issuer_epoch=2,
+        issued_at="2030-05-02T00:00:00Z",
+        not_before="2030-05-02T00:00:00Z",
     )
     claim.update(
         {
@@ -258,9 +268,9 @@ def build_vectors() -> dict[str, Any]:
         _sign(delegation, root),
         _sign(rotation, root),
         _sign(revocation, root),
-        _sign(precedence, successor),
         _sign(recovery_entry, recovery),
-        _sign(claim, successor),
+        _sign(precedence, recovered),
+        _sign(claim, recovered),
     ]
     return {
         "example_bundle": {
@@ -268,10 +278,10 @@ def build_vectors() -> dict[str, Any]:
             "entries": [item["signed_entry"] for item in vectors],
             "lineage_heads": [
                 {
-                    "entry_id": rotation["entry_id"],
-                    "epoch": 1,
+                    "entry_id": recovery_entry["entry_id"],
+                    "epoch": 2,
                     "lineage_id": root["lineage_id"],
-                    "payload_sha256": vectors[1]["canonical_payload_sha256"],
+                    "payload_sha256": vectors[3]["canonical_payload_sha256"],
                 },
                 {
                     "entry_id": delegation["entry_id"],
@@ -295,7 +305,7 @@ def build_vectors() -> dict[str, Any]:
                     "scope": deepcopy(SCOPE),
                 }
             ],
-            "schema_version": "agent-context-proof-authority-bundle-v0.3.0",
+            "schema_version": "agent-context-proof-authority-bundle-v0.3.1",
             "trust_anchors": [
                 {
                     "anchor_id": "anchor:root-a-epoch-0",

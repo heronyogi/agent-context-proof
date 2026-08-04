@@ -176,6 +176,9 @@ The example values illustrate shape only and are not a required blind case.
 Contract and evidence provenance are empty because `AUTHORITY_CONFLICT`
 terminates evaluation before those stages, not because conflict lacks decisive
 provenance. Every undominated conflicting authority claim has its own chain.
+Authority chains are sorted by `(issuer_id, claim_entry_id)` using Unicode code
+point order. Contract and evidence records are sorted by `(path, sha256)`;
+records inside one authority chain retain anchor-to-claim semantic order.
 
 ## Oracle labeling and disagreement
 

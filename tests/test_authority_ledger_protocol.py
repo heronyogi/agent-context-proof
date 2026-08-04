@@ -21,7 +21,9 @@ ENTRY_SCHEMA_PATH = (
 BUNDLE_SCHEMA_PATH = (
     PROJECT_ROOT / "docs" / "authority-ledger-bundle.v0.3.schema.json"
 )
-VECTOR_PATH = PROJECT_ROOT / "docs" / "authority-ledger.v0.3.vectors.json"
+VECTOR_PATH = (
+    PROJECT_ROOT / "tests" / "fixtures" / "authority-ledger.v0.3.vectors.json"
+)
 PROTOCOL_PATH = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.json"
 GENERATOR_PATH = PROJECT_ROOT / "scripts" / "generate_authority_vectors.py"
 
@@ -72,6 +74,9 @@ def test_authority_vectors_are_generated_and_schema_valid() -> None:
     vectors = _load(VECTOR_PATH)
     generator = _generator_module()
     assert generator.build_vectors() == vectors
+    assert vectors["schema_version"] == (
+        "agent-context-proof-authority-vectors-v0.3.1"
+    )
 
     entry_validator, bundle_validator = _validators()
     bundle_validator.validate(vectors["example_bundle"])
@@ -181,6 +186,9 @@ def test_entry_schema_and_protocol_require_the_same_type_specific_fields() -> No
         "bundle": "docs/authority-ledger-bundle.v0.3.schema.json",
         "entry": "docs/authority-ledger-entry.v0.3.schema.json",
     }
+    assert protocol["authority_ledger"]["reference_vectors"] == (
+        "tests/fixtures/authority-ledger.v0.3.vectors.json"
+    )
 
 
 def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() -> None:
@@ -217,11 +225,20 @@ def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() ->
     replacement = keys[recovery["replacement_issuer_id"]]
     assert recovery_signer["name"] == "recovery"
     assert recovery_signer["lineage_id"] != compromised["lineage_id"]
+    assert recovery["predecessor_entry_id"] == rotation["entry_id"]
+    assert recovery["compromised_issuer_id"] == rotation[
+        "successor_issuer_id"
+    ]
+    assert recovery["compromised_lineage_id"] == rotation["lineage_id"]
     assert recovery["replacement_key_id"] == replacement["key_id"]
     assert recovery["replacement_public_key_base64url"] == replacement[
         "public_key_base64url"
     ]
     assert recovery["replacement_lineage_id"] == replacement["lineage_id"]
+    assert recovery["replacement_lineage_id"] == recovery[
+        "compromised_lineage_id"
+    ]
+    assert recovery["replacement_epoch"] == rotation["successor_epoch"] + 1
     assert recovery["replacement_permissions"] == sorted(
         set(recovery["replacement_permissions"])
     )
@@ -229,34 +246,43 @@ def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() ->
     assert set(recovery["replacement_permissions"]) <= set(
         recovery_anchor["replacement_permissions_ceiling"]
     )
+    assert set(recovery["replacement_permissions"]) <= set(
+        rotation["successor_permissions"]
+    )
 
     revocation = entries["revocation"]
     boundary = _timestamp(revocation["effective_at"])
+    assert _timestamp(revocation["issued_at"]) < _timestamp(
+        rotation["not_before"]
+    )
+    assert _timestamp(rotation["not_before"]) < boundary
     assert _timestamp("2030-05-31T23:59:59Z") < boundary
     assert _timestamp("2030-06-01T00:00:00Z") >= boundary
 
     precedence = entries["precedence"]
     assert _timestamp(precedence["issued_at"]) >= _timestamp(
-        rotation["not_before"]
+        recovery["effective_at"]
     )
     assert precedence["higher_issuer_id"] != precedence["lower_issuer_id"]
     assert precedence["scope"] == vectors["example_bundle"]["case_coordinate"]
 
     claim = entries["claim"]
-    assert _timestamp(claim["issued_at"]) >= _timestamp(rotation["not_before"])
+    assert _timestamp(claim["issued_at"]) >= _timestamp(
+        recovery["effective_at"]
+    )
 
     heads = {
         item["lineage_id"]: item
         for item in vectors["example_bundle"]["lineage_heads"]
     }
-    rotation_vector = next(
-        item for item in vectors["vectors"] if item["entry_type"] == "rotation"
+    recovery_vector = next(
+        item for item in vectors["vectors"] if item["entry_type"] == "recovery"
     )
     assert heads[rotation["lineage_id"]] == {
-        "entry_id": rotation["entry_id"],
-        "epoch": rotation["successor_epoch"],
+        "entry_id": recovery["entry_id"],
+        "epoch": recovery["replacement_epoch"],
         "lineage_id": rotation["lineage_id"],
-        "payload_sha256": rotation_vector["canonical_payload_sha256"],
+        "payload_sha256": recovery_vector["canonical_payload_sha256"],
     }
     delegation_vector = next(
         item
@@ -269,6 +295,54 @@ def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() ->
         "lineage_id": delegation["subject_lineage_id"],
         "payload_sha256": delegation_vector["canonical_payload_sha256"],
     }
+
+
+def test_recovery_transition_rejects_lineage_epoch_and_predecessor_mismatch() -> None:
+    vectors = _load(VECTOR_PATH)
+    protocol = _load(PROTOCOL_PATH)
+    entries = {
+        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
+    }
+    recovery = entries["recovery"]
+    predecessor = entries["rotation"]
+    profile = protocol["authority_ledger"]["recovery_profile"]
+
+    def errors(candidate):
+        found = []
+        if candidate["predecessor_entry_id"] != predecessor["entry_id"]:
+            found.append("predecessor")
+        if candidate["compromised_issuer_id"] != predecessor[
+            "successor_issuer_id"
+        ]:
+            found.append("issuer")
+        if candidate["compromised_lineage_id"] != predecessor["lineage_id"]:
+            found.append("compromised_lineage")
+        if candidate["replacement_lineage_id"] != candidate[
+            "compromised_lineage_id"
+        ]:
+            found.append("replacement_lineage")
+        if candidate["replacement_epoch"] != predecessor["successor_epoch"] + 1:
+            found.append("epoch")
+        return found
+
+    assert errors(recovery) == []
+    for field, invalid_value, expected_error in [
+        ("predecessor_entry_id", "entry:unknown", "predecessor"),
+        ("compromised_issuer_id", "authority:unknown", "issuer"),
+        ("compromised_lineage_id", "lineage:unknown", "compromised_lineage"),
+        ("replacement_lineage_id", "lineage:unrelated", "replacement_lineage"),
+        ("replacement_epoch", 7, "epoch"),
+    ]:
+        mutated = deepcopy(recovery)
+        mutated[field] = invalid_value
+        assert expected_error in errors(mutated)
+
+    assert profile["new_lineage_allowed"] is False
+    assert profile["replacement_epoch_rule"] == "predecessor_epoch_plus_one"
+    assert profile["parallel_different_replacements"] == "INDETERMINATE"
+    assert profile["boundary_precondition_failure"] == (
+        "INVALID_if_resolved_mismatch_else_INDETERMINATE"
+    )
 
 
 def test_rollback_head_contract_is_bound_to_the_bundle_schema() -> None:
@@ -304,6 +378,59 @@ def test_rollback_head_contract_is_bound_to_the_bundle_schema() -> None:
         *(entry["entry_id"] for entry in bundle["entries"]),
     ]
     assert len(record_ids) == len(set(record_ids))
+
+
+def test_delayed_transitions_authorize_once_and_apply_at_the_boundary() -> None:
+    protocol = _load(PROTOCOL_PATH)
+    ledger = protocol["authority_ledger"]
+    validation = {
+        item["id"]: item["rule"] for item in ledger["validation_order"]
+    }
+    vectors = _load(VECTOR_PATH)
+    entries = {
+        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
+    }
+
+    assert ledger["time_profile"]["entry_authorization_time"] == (
+        "state_immediately_before_issued_at"
+    )
+    assert ledger["time_profile"]["delayed_transition_application"] == (
+        "apply_at_effective_boundary_without_signer_reauthorization"
+    )
+    assert ledger["time_profile"]["delayed_transition_time_order"] == (
+        "issued_at_at_or_before_not_before_at_or_before_effective_boundary"
+    )
+    assert ledger["time_profile"][
+        "boundary_must_be_within_validity_interval"
+    ] is True
+    assert ledger["revocation_profile"][
+        "signer_reauthorized_at_effective_boundary"
+    ] is False
+    assert "At issued_at" in validation["L6_AUTHORIZATION"]
+    assert "without reauthorizing signers" in validation["L7_BOUNDARIES"]
+
+    revocation = entries["revocation"]
+    rotation = entries["rotation"]
+    assert revocation["issuer_id"] == rotation["issuer_id"]
+    assert _timestamp(revocation["issued_at"]) < _timestamp(
+        rotation["not_before"]
+    ) < _timestamp(revocation["effective_at"])
+
+    for entry in entries.values():
+        assert _timestamp(entry["issued_at"]) <= _timestamp(entry["not_before"])
+        if "not_after" in entry:
+            assert _timestamp(entry["not_before"]) < _timestamp(
+                entry["not_after"]
+            )
+    for entry_type, boundary_field in {
+        "recovery": "effective_at",
+        "revocation": "effective_at",
+        "rotation": "not_before",
+    }.items():
+        entry = entries[entry_type]
+        boundary = _timestamp(entry[boundary_field])
+        assert _timestamp(entry["not_before"]) <= boundary
+        assert boundary < _timestamp(entry["not_after"])
 
 
 def test_schema_rejects_unknown_fields_and_malformed_signatures() -> None:

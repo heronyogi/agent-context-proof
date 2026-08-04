@@ -9,6 +9,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_JSON = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.json"
 PROTOCOL_MD = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.md"
 AUTHORING_MD = PROJECT_ROOT / "docs" / "case-authoring.v0.3.md"
+REVIEW_GUIDE = PROJECT_ROOT / "docs" / "v0.3-review-guide.md"
+CI_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
+LIVE_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "live-eval.yml"
 
 
 def _protocol() -> dict[str, object]:
@@ -58,7 +61,7 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.3"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.4"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"
@@ -130,10 +133,10 @@ def test_conflict_algorithm_exactly_mirrors_the_machine_contract() -> None:
         "C1_COORDINATE",
         "C2_VALIDATE",
         "C3_FILTER",
-        "C4_DEDUPLICATE",
-        "C5_LINEAGE",
-        "C6_PRECEDENCE",
-        "C7_MAXIMA",
+        "C4_LINEAGE",
+        "C5_PRECEDENCE",
+        "C6_MAXIMA",
+        "C7_DEDUPLICATE",
         "C8_CLASSIFY",
     ]
 
@@ -155,11 +158,46 @@ def test_conflict_and_ledger_rules_have_consistent_boundaries() -> None:
     assert ledger["precedence_profile"]["active_cycle"] == "INDETERMINATE"
     assert conflict["precedence_cycle_result"] == "INDETERMINATE"
     assert conflict["scope_or_time_disjoint_result"] == "not_a_conflict"
+    assert conflict["deduplication_timing"] == (
+        "after_lineage_precedence_and_maxima"
+    )
+    assert conflict["deduplicated_group_retains"] == [
+        "issuer_id",
+        "lineage_id",
+        "claim_entry_id",
+        "provenance_chain",
+    ]
 
     conflict_rows = [row for row in valid if row["authority_status"] == "CONFLICT"]
     assert len(conflict_rows) == 1
     assert conflict_rows[0]["disposition"] == "AUTHORITY_CONFLICT"
     assert protocol["pass_conditions"]["allowed_missed_authority_conflicts"] == 0
+
+
+def test_equal_claims_preserve_issuer_identity_through_dominance() -> None:
+    claims = [
+        {"issuer": "A", "lineage": "L-A", "value": "X"},
+        {"issuer": "B", "lineage": "L-B", "value": "X"},
+        {"issuer": "C", "lineage": "L-C", "value": "Y"},
+    ]
+    precedence_edges = {("C", "A")}
+
+    undominated = [
+        claim
+        for claim in claims
+        if not any(
+            higher == other["issuer"] and lower == claim["issuer"]
+            for higher, lower in precedence_edges
+            for other in claims
+        )
+    ]
+    grouped: dict[str, set[str]] = {}
+    for claim in undominated:
+        grouped.setdefault(claim["value"], set()).add(claim["issuer"])
+
+    assert {claim["issuer"] for claim in undominated} == {"B", "C"}
+    assert grouped == {"X": {"B"}, "Y": {"C"}}
+    assert len(grouped) == 2
 
 
 def test_ledger_profile_exactly_mirrors_the_machine_contract() -> None:
@@ -305,6 +343,17 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain(
     assert provenance_contract["unevaluated_stages_rule"] == (
         "ordered_suffix_of_stage_order"
     )
+    assert provenance_contract["array_ordering"] == {
+        "authority_chains": (
+            "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id)"
+        ),
+        "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
+        "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
+        "records_within_authority_chain": (
+            "semantic_chain_order_from_anchor_or_delegation_to_claim"
+        ),
+        "unevaluated_stages": "stage_order_suffix",
+    }
 
     oracle_example = next(
         block for block in _json_blocks(AUTHORING_MD) if "oracle" in block
@@ -320,6 +369,10 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain(
     assert provenance["contract_records"] == []
     assert provenance["evidence_records"] == []
     assert provenance["unevaluated_stages"] == ["contract", "evidence"]
+    assert chains == sorted(
+        chains,
+        key=lambda item: (item["issuer_id"], item["claim_entry_id"]),
+    )
     stage_order = provenance_contract["stage_order"]
     first_skipped = stage_order.index(provenance["unevaluated_stages"][0])
     assert provenance["unevaluated_stages"] == stage_order[first_skipped:]
@@ -499,3 +552,66 @@ def test_readme_exposes_protocol_draft_without_claiming_a_result() -> None:
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     assert "docs/proof-protocol.v0.3.md" in readme
     assert "No v0.3 implementation or result is claimed" in readme
+    assert "v0.3 is a protocol draft under independent review" in readme
+    assert "tests/fixtures/authority-ledger.v0.3.vectors.json" in readme
+    assert "docs/authority-ledger.v0.3.vectors.json" not in readme
+
+
+def test_reviewer_guide_maps_the_frozen_boundary_and_artifacts() -> None:
+    guide = REVIEW_GUIDE.read_text(encoding="utf-8")
+    for relative_path in [
+        "docs/proof-protocol.v0.3.md",
+        "docs/proof-protocol.v0.3.json",
+        "docs/case-authoring.v0.3.md",
+        "docs/authority-ledger-entry.v0.3.schema.json",
+        "docs/authority-ledger-bundle.v0.3.schema.json",
+        "tests/fixtures/authority-ledger.v0.3.vectors.json",
+        "scripts/generate_authority_vectors.py",
+        "tests/test_protocol_v03.py",
+        "tests/test_authority_ledger_protocol.py",
+    ]:
+        assert (PROJECT_ROOT / relative_path).is_file()
+        assert Path(relative_path).name in guide
+
+    assert "APPROVE_FOR_CASE_SEALING" in guide
+    assert "REQUEST_CHANGES" in guide
+    assert "No final blind case may be authored" in guide
+    assert "no v0.3 evaluator" in guide.lower()
+    assert "not production data" in guide
+
+
+def test_vectors_are_isolated_and_prominently_marked_test_only() -> None:
+    protocol = _protocol()
+    fixture_path = PROJECT_ROOT / protocol["authority_ledger"][
+        "reference_vectors"
+    ]
+    fixture_text = fixture_path.read_text(encoding="utf-8")
+    fixture_readme = (fixture_path.parent / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert fixture_path.parent == PROJECT_ROOT / "tests" / "fixtures"
+    assert not (PROJECT_ROOT / "docs" / fixture_path.name).exists()
+    assert "private_seed_base64url_TEST_ONLY" in fixture_text
+    assert "public, synthetic, non-production test material" in fixture_readme
+    assert "must never be used" in fixture_readme
+
+
+def test_workflow_triggers_make_live_evaluation_manual_and_non_gating() -> None:
+    ci = CI_WORKFLOW.read_text(encoding="utf-8")
+    live = LIVE_WORKFLOW.read_text(encoding="utf-8")
+    guide = REVIEW_GUIDE.read_text(encoding="utf-8")
+
+    assert "\n  pull_request:" in ci
+    assert "\n  push:" in ci
+    assert "OPENAI_API_KEY" not in ci
+    assert "python -m pytest" in ci
+    assert "python -m ruff check ." in ci
+
+    assert "workflow_dispatch:" in live
+    assert "pull_request:" not in live
+    assert "\n  push:" not in live
+    assert "secrets.OPENAI_API_KEY" in live
+    assert "retention-days: 14" in live
+    assert "not a v0.3 protocol review gate" in live
+    assert "not a v0.3 review check or proof gate" in guide
