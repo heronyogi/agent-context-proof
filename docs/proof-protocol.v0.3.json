@@ -1,0 +1,749 @@
+{
+  "authority_ledger": {
+    "primitives": [
+      {
+        "id": "canonicalization",
+        "requirement": "Parse strict I-JSON with duplicate member names rejected, validate the entry schema, remove only the top-level signature member, and canonicalize the remaining payload with RFC 8785 JCS."
+      },
+      {
+        "id": "signature",
+        "requirement": "Use Ed25519 over the UTF-8 JCS bytes; encode signatures as unpadded base64url and key IDs as sha256:<lowercase hex SHA-256 of the 32 raw public-key bytes>."
+      },
+      {
+        "id": "time",
+        "requirement": "Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end; authorize each entry once at issued_at, then apply an already-authorized delayed transition at its effective boundary without reauthorizing the signer."
+      },
+      {
+        "id": "scope",
+        "requirement": "Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; specificity never creates implicit precedence."
+      },
+      {
+        "id": "epoch",
+        "requirement": "Use non-negative integers comparable only within one lineage; accept only a predecessor-signed successor at predecessor epoch plus one, and let the highest validated effective epoch dominate older lineage entries."
+      },
+      {
+        "id": "revocation",
+        "requirement": "A valid revocation applies at and after effective_at, including to non-revocation records signed earlier; it must be signed by a then-valid authority whose scope grants revoke for the target, and the revocation action remains durable if its signer is later revoked."
+      },
+      {
+        "id": "rollback",
+        "requirement": "Externally committed lineage heads pin the expected effective epoch and payload; a lower or different presented head is rollback and INVALID, while historical transition records remain chain provenance."
+      },
+      {
+        "id": "precedence",
+        "requirement": "Represent precedence only as signed, scoped, time-bounded higher_issuer_id to lower_issuer_id edges; apply transitive closure, and treat an active cycle as INDETERMINATE."
+      },
+      {
+        "id": "recovery",
+        "requirement": "A suspected root cannot authenticate its own recovery; recovery or compromise resolution must chain to a separately supplied recovery trust anchor."
+      }
+    ],
+    "entry_types": [
+      {
+        "entry_type": "delegation",
+        "required_fields": [
+          "subject_issuer_id",
+          "subject_key_id",
+          "subject_public_key_base64url",
+          "subject_lineage_id",
+          "subject_epoch",
+          "permissions"
+        ],
+        "rule": "The signer must be current at issued_at and hold delegate permission for the matching scope; permissions are unique and Unicode-code-point sorted."
+      },
+      {
+        "entry_type": "rotation",
+        "required_fields": [
+          "predecessor_entry_id",
+          "successor_issuer_id",
+          "successor_key_id",
+          "successor_public_key_base64url",
+          "successor_permissions",
+          "successor_epoch"
+        ],
+        "rule": "The current predecessor signs one successor in the same lineage at issuer_epoch plus one; it becomes effective at not_before."
+      },
+      {
+        "entry_type": "revocation",
+        "required_fields": [
+          "target_entry_id",
+          "target_issuer_id",
+          "effective_at"
+        ],
+        "rule": "A signer valid immediately before issued_at must hold revoke permission; target_entry_id must uniquely resolve to an authority-introduction record whose introduced issuer is target_issuer_id, and the grant is durably revoked when validation_time is at or after effective_at."
+      },
+      {
+        "entry_type": "precedence",
+        "required_fields": [
+          "higher_issuer_id",
+          "lower_issuer_id"
+        ],
+        "rule": "A current signer with set_precedence permission creates one directed edge only for matching scope and the entry validity interval."
+      },
+      {
+        "entry_type": "recovery",
+        "required_fields": [
+          "compromised_issuer_id",
+          "compromised_lineage_id",
+          "predecessor_entry_id",
+          "replacement_issuer_id",
+          "replacement_key_id",
+          "replacement_public_key_base64url",
+          "replacement_lineage_id",
+          "replacement_epoch",
+          "replacement_permissions",
+          "effective_at"
+        ],
+        "rule": "The signer must resolve from the separate recovery trust-anchor set with recover permission; at effective_at, predecessor_entry_id must be the current head of compromised_lineage_id for compromised_issuer_id, replacement_lineage_id must equal that lineage, and replacement_epoch must equal the predecessor epoch plus one."
+      },
+      {
+        "entry_type": "claim",
+        "required_fields": [
+          "claim_name",
+          "claim_value"
+        ],
+        "rule": "The signer must be current at validation_time and hold claim permission for the complete case coordinate."
+      }
+    ],
+    "json_profile": {
+      "duplicate_member_names": "REJECT",
+      "input_profile": "I-JSON",
+      "non_finite_numbers": "REJECT",
+      "number_serialization": "RFC8785_ECMASCRIPT",
+      "unicode": "well_formed_Unicode_only"
+    },
+    "reference_vectors": "tests/fixtures/authority-ledger.v0.3.vectors.json",
+    "schema_files": {
+      "bundle": "docs/authority-ledger-bundle.v0.3.schema.json",
+      "entry": "docs/authority-ledger-entry.v0.3.schema.json"
+    },
+    "signature_profile": {
+      "algorithm": "Ed25519",
+      "canonicalization": "RFC8785_JCS",
+      "key_id": "sha256:<lowercase_hex_sha256_raw_32_byte_public_key>",
+      "public_key_encoding": "base64url_no_padding_raw_32_bytes",
+      "signature_bytes": 64,
+      "signature_encoding": "base64url_no_padding",
+      "signed_payload": "utf8_jcs(entry_without_top_level_signature_member)"
+    },
+    "time_profile": {
+      "boundary_must_be_within_validity_interval": true,
+      "delayed_transition_application": "apply_at_effective_boundary_without_signer_reauthorization",
+      "delayed_transition_time_order": "issued_at_at_or_before_not_before_at_or_before_effective_boundary",
+      "entry_authorization_time": "state_immediately_before_issued_at",
+      "format": "UTC_RFC3339_Z",
+      "interval": "[not_before,not_after)",
+      "revocation_effective_boundary": "inclusive",
+      "validation_time_source": "frozen_case_record"
+    },
+    "scope_profile": {
+      "coordinate_fields": [
+        "organization",
+        "repository",
+        "artifact",
+        "action"
+      ],
+      "matching": "exact_or_entire_field_wildcard",
+      "specificity_implies_precedence": false,
+      "wildcard": "*"
+    },
+    "epoch_profile": {
+      "comparison_domain": "same_lineage_only",
+      "effective_epoch": "highest_validated_successor_whose_boundary_is_at_or_before_validation_time",
+      "minimum": 0,
+      "parallel_different_successors": "INDETERMINATE",
+      "rotation_increment": 1,
+      "same_lineage_same_epoch_different_successor": "INDETERMINATE",
+      "successor_endorsement_entry_type": "rotation",
+      "unlinked_higher_epoch": "INVALID"
+    },
+    "recovery_profile": {
+      "authorization_time": "state_immediately_before_issued_at",
+      "boundary_precondition_failure": "INVALID_if_resolved_mismatch_else_INDETERMINATE",
+      "compromised_lineage_may_self_recover": false,
+      "effective_boundary": "inclusive",
+      "new_lineage_allowed": false,
+      "parallel_different_replacements": "INDETERMINATE",
+      "predecessor_rule": "predecessor_entry_id_is_current_head_of_compromised_lineage_id_for_compromised_issuer_id_immediately_before_effective_at",
+      "replacement_epoch_rule": "predecessor_epoch_plus_one",
+      "replacement_lineage_rule": "same_as_compromised_lineage_id",
+      "replacement_permissions_source": "intersection_of_predecessor_permissions_and_recovery_trust_anchor.replacement_permissions_ceiling",
+      "trust_anchor_set": "recovery_trust_anchors"
+    },
+    "rollback_profile": {
+      "decision_entry_rule": "claim_or_active_precedence_signer_must_be_current_at_validation_time",
+      "head_pin_coverage": "every_signer_and_endpoint_lineage_of_a_potentially_matching_claim_or_active_precedence_at_validation_time",
+      "head_pin_fields": [
+        "lineage_id",
+        "epoch",
+        "entry_id",
+        "payload_sha256"
+      ],
+      "head_record_rule": "epoch_zero_head_is_a_trust_anchor_or_valid_delegation;later_head_is_a_valid_rotation_or_recovery;compatible_same_epoch_reendorsement_does_not_change_the_head",
+      "historical_transitions_remain_provenance": true,
+      "missing_or_lower_than_committed_head": "INVALID",
+      "payload_rule": "sha256_of_utf8_rfc8785_jcs_head_record_with_top_level_signature_removed_when_present",
+      "record_id_uniqueness": "anchor_id_and_entry_id_values_are_unique_across_the_bundle",
+      "same_epoch_different_head": "INVALID"
+    },
+    "revocation_profile": {
+      "authorization_time": "state_immediately_before_issued_at",
+      "dependency_invalidation": "recursive_non_revocation_records_depending_exclusively_on_revoked_authority_record",
+      "durability": "authorized_revocation_remains_effective_if_issuer_is_later_revoked",
+      "earlier_signatures_grandfathered": false,
+      "effective_boundary": "inclusive",
+      "revoked_committed_head": "never_rewind;OA3_INVALID_if_no_valid_chain_remains;OA4_UNKNOWN_if_an_alternate_chain_is_unresolved",
+      "same_boundary_application": "freeze_pre_boundary_heads;union_durable_revocations;recursively_suppress_dependent_non_revocation_records;check_unsuppressed_rotation_and_recovery_predecessors_against_frozen_heads;apply_remaining_transitions_simultaneously",
+      "same_boundary_unresolved_dependency": "INDETERMINATE",
+      "signer_reauthorized_at_effective_boundary": false,
+      "target_introduced_issuer_fields": {
+        "delegation": "subject_issuer_id",
+        "recovery": "replacement_issuer_id",
+        "rotation": "successor_issuer_id",
+        "trust_anchor": "issuer_id"
+      },
+      "target_record_types": [
+        "trust_anchor",
+        "delegation",
+        "rotation",
+        "recovery"
+      ],
+      "target_resolution": "target_entry_id_uniquely_resolves_anchor_id_or_entry_id_and_target_issuer_id_matches_introduced_issuer",
+      "target_resolution_failure": "INVALID_if_missing_or_resolved_mismatch;INDETERMINATE_if_key_or_dependency_resolution_is_unresolved"
+    },
+    "precedence_profile": {
+      "active_cycle": "INDETERMINATE",
+      "edge_fields": [
+        "higher_issuer_id",
+        "lower_issuer_id",
+        "scope",
+        "not_before",
+        "not_after"
+      ],
+      "representation": "signed_scoped_time_bounded_directed_edges",
+      "transitive": true
+    },
+    "validation_order": [
+      {
+        "id": "L1_PARSE",
+        "rule": "Parse strict I-JSON, rejecting duplicate member names, malformed Unicode, non-finite numbers, and unsafe numeric values."
+      },
+      {
+        "id": "L2_SCHEMA",
+        "rule": "Validate the bundle and every entry against the committed v0.3 schemas before using any field."
+      },
+      {
+        "id": "L3_CANONICALIZE",
+        "rule": "Remove exactly the top-level signature member and compute the RFC 8785 JCS UTF-8 payload and its SHA-256 digest."
+      },
+      {
+        "id": "L4_KEY_RESOLUTION",
+        "rule": "Resolve signature.key_id uniquely from an external trust anchor or an already valid delegation, rotation, or recovery record; require it to equal issuer_key_id and the digest of the raw public key."
+      },
+      {
+        "id": "L5_SIGNATURE",
+        "rule": "Verify the 64 raw Ed25519 signature bytes over the canonical payload before evaluating authority semantics."
+      },
+      {
+        "id": "L6_AUTHORIZATION",
+        "rule": "At issued_at, require the signer to be current, unrevoked, in scope, and authorized for the entry-type permission."
+      },
+      {
+        "id": "L7_BOUNDARIES",
+        "rule": "Group already-authorized rotations, revocations, and recoveries by effective boundary; freeze the pre-boundary heads, apply the union of durable revocations, recursively suppress dependent non-revocation records, then check unsuppressed rotation and recovery predecessor preconditions against the frozen heads and apply every remaining eligible transition simultaneously without reauthorizing signers."
+      },
+      {
+        "id": "L8_LINEAGE",
+        "rule": "Build predecessor-linked epochs, reject unlinked increments and rollback, and return INDETERMINATE for competing successors at the same next epoch."
+      },
+      {
+        "id": "L9_RESOLUTION",
+        "rule": "At validation_time, evaluate active precedence and current claims only after ledger state, scope, and lineage are fixed."
+      }
+    ]
+  },
+  "authority_statuses": [
+    "VALID",
+    "INVALID",
+    "CONFLICT",
+    "INDETERMINATE"
+  ],
+  "base_commit": "3741aae69b779af36882705e7a8fb61bf734474a",
+  "blind_case_minimum": 12,
+  "blind_evaluation": {
+    "authorship": {
+      "author_conflict_rule": "ineligible_family",
+      "minimum_distinct_primary_authors": 4,
+      "minimum_independence_clusters": 4,
+      "relatedness_cluster_rule": "connected_components",
+      "required_record_fields": [
+        "family_id",
+        "primary_author_id",
+        "coauthor_ids",
+        "implementation_roles",
+        "shared_source_digests",
+        "coordination_disclosures",
+        "conflicts_of_interest",
+        "attestation_timestamp",
+        "attestation_signature"
+      ],
+      "shared_outcome_determining_source_rule": "same_independence_cluster"
+    },
+    "envelopes": {
+      "public_commitment": {
+        "allowed_before_freeze": [
+          "schema_versions",
+          "aggregate_case_count",
+          "aggregate_family_count",
+          "sealed_input_pack_sha256",
+          "sealed_oracle_pack_sha256",
+          "authorship_attestation_sha256",
+          "leakage_review_attestation_sha256"
+        ],
+        "prohibited_before_freeze": [
+          "case_ids",
+          "family_ids",
+          "questions",
+          "filenames",
+          "path_order",
+          "fixture_bytes",
+          "mutation_descriptions",
+          "oracle_fields",
+          "reason_codes",
+          "author_notes"
+        ]
+      },
+      "sealed_input_pack": {
+        "reveal_after": "implementation_freeze",
+        "runner_output_commitment_required_before_oracle_reveal": true
+      },
+      "sealed_oracle_pack": {
+        "reveal_after": "all_path_outputs_digest_committed"
+      }
+    },
+    "leakage_review": {
+      "allowed_dispositions": [
+        "PASS",
+        "REVISE",
+        "REJECT"
+      ],
+      "blinded_reviewer_may_see": "exact_input_pack_only_with_randomized_ids_and_order",
+      "blinded_reviewer_must_not_see": [
+        "oracle_labels",
+        "reason_codes",
+        "mutation_descriptions",
+        "author_notes"
+      ],
+      "case_acceptance": "PASS_before_pack_commitment",
+      "leak_definition": "outcome_predictive_feature_not_required_by_the_declared_causal_mechanism",
+      "oracle_custodian_records": [
+        "reviewer_predictions",
+        "identified_cues",
+        "semantic_or_extraneous_classification",
+        "case_disposition",
+        "rationale"
+      ],
+      "revision_requires": "new_pack_digest_and_new_blinded_reviewer",
+      "unremovable_leak": "REJECT"
+    },
+    "oracle_labeling": {
+      "disagreement_if_unresolved": "REJECT_BEFORE_PACK_COMMITMENT",
+      "implementer_may_annotate": false,
+      "minimum_independent_annotators": 2,
+      "required_rule_id_classes": [
+        "mechanism_or_valid_output",
+        "authority",
+        "evidence_when_authority_valid"
+      ],
+      "sealed_artifacts": [
+        "independent_annotations",
+        "adjudication_record",
+        "oracle_rule_ids",
+        "rationale"
+      ]
+    },
+    "statistical_independence_unit": "independence_cluster"
+  },
+  "blind_family_minimum": 4,
+  "compared_paths": {
+    "full_packet_reasoning": {
+      "classification": "tertiary_descriptive_control",
+      "required": false
+    },
+    "governed": {
+      "provider_independent_evaluator": true,
+      "required": true
+    },
+    "retrieval_plus_rules": {
+      "independent_authority_resolver": true,
+      "independent_policy_executor": true,
+      "may_import_oracle_or_governed_evaluator": false,
+      "required": true,
+      "same_permitted_inputs": true
+    }
+  },
+  "conflict_resolution": {
+    "combine_operators": [],
+    "decision_key": [
+      "resolved_scope_coordinate",
+      "claim_name"
+    ],
+    "incompatible_outcomes": "unequal_RFC8785_JCS_claim_values_for_same_decision_key",
+    "ordered_steps": [
+      {
+        "id": "C1_COORDINATE",
+        "rule": "Freeze one validation time and resolve one complete scope coordinate plus claim name."
+      },
+      {
+        "id": "C2_VALIDATE",
+        "rule": "Validate ledger parsing, canonical bytes, signatures, delegation, scope, time, revocation, rotation, and rollback; classify each potentially matching record as valid, invalid, or unresolved."
+      },
+      {
+        "id": "C3_FILTER",
+        "rule": "Discard definitively invalid and nonmatching records; if an unresolved record could match or dominate the decision key, return INDETERMINATE."
+      },
+      {
+        "id": "C4_LINEAGE",
+        "rule": "Within each lineage, retain only individual claims at its highest validated effective epoch; do not merge claims from different issuers or lineages."
+      },
+      {
+        "id": "C5_PRECEDENCE",
+        "rule": "Apply the transitive closure of active explicit precedence edges to individual claims and remove each dominated claim."
+      },
+      {
+        "id": "C6_MAXIMA",
+        "rule": "Compute the remaining undominated individual claims; disjoint scope or time records never compete at the case coordinate."
+      },
+      {
+        "id": "C7_DEDUPLICATE",
+        "rule": "Group remaining maxima only when they have the same decision key and byte-identical RFC 8785 JCS claim value, retaining every constituent issuer, lineage, claim entry, and provenance chain."
+      },
+      {
+        "id": "C8_CLASSIFY",
+        "rule": "Return CONFLICT only when at least two undominated valid claims share a decision key and have unequal canonical values; otherwise return the single compatible outcome."
+      }
+    ],
+    "deduplication_timing": "after_lineage_precedence_and_maxima",
+    "deduplicated_group_retains": [
+      "issuer_id",
+      "lineage_id",
+      "claim_entry_id",
+      "provenance_chain"
+    ],
+    "precedence_cycle_result": "INDETERMINATE",
+    "scope_or_time_disjoint_result": "not_a_conflict",
+    "specificity_dominance": false
+  },
+  "dispositions": [
+    "READY",
+    "HOLD",
+    "INDETERMINATE",
+    "AUTHORITY_CONFLICT"
+  ],
+  "failure_classes": [
+    "STALE_OR_CORRUPTED_POLICY",
+    "CONFLICTING_VALID_AUTHORITIES",
+    "ADVERSARIAL_OR_MISLEADING_EVIDENCE",
+    "AMBIGUOUS_OWNERSHIP",
+    "VALID_ROOT_ROTATION",
+    "ROLLBACK",
+    "VALID_REISSUANCE",
+    "ROOT_COMPROMISE",
+    "REVOCATION",
+    "OVERLAPPING_AUTHORITY"
+  ],
+  "implementation_gate": "AWAITING_INDEPENDENT_PROTOCOL_REVIEW",
+  "mechanism_statuses": [
+    "CONFORMANT",
+    "NONCONFORMANT",
+    "INDETERMINATE"
+  ],
+  "metrics": {
+    "authority_conflict_precision_recall": true,
+    "false_ready": true,
+    "indeterminate_selective_metrics": true,
+    "joint_exact_match": true,
+    "probability_calibration_only_when_emitted": true,
+    "provenance_and_digest_replay": true,
+    "raw_case_repeat_matrix": true,
+    "repeat_as_independent_observation": false
+  },
+  "oracle_classification": {
+    "authority_rules": [
+      {
+        "authority_status": "VALID",
+        "disposition_route": "EVIDENCE_CLASSIFICATION",
+        "id": "OA1_VALID",
+        "rule": "At least one valid undominated claim matches the decision key, all valid maxima have one canonical value, and no unresolved record could match or dominate it."
+      },
+      {
+        "authority_status": "CONFLICT",
+        "disposition_route": "AUTHORITY_CONFLICT",
+        "id": "OA2_CONFLICT",
+        "rule": "At least two valid undominated claims match the decision key and have unequal RFC 8785 JCS claim values."
+      },
+      {
+        "authority_status": "INVALID",
+        "disposition_route": "INDETERMINATE",
+        "id": "OA3_INVALID",
+        "rule": "No valid matching claim remains, at least one matching claim is definitively invalid, and no unresolved record could supply or alter the outcome."
+      },
+      {
+        "authority_status": "INDETERMINATE",
+        "disposition_route": "INDETERMINATE",
+        "id": "OA4_UNKNOWN",
+        "rule": "Authority input is incomplete or unparseable, a cycle or unresolved record could alter the outcome, or neither a valid nor definitively invalid matching claim can be established."
+      }
+    ],
+    "evidence_aggregation_precedence": [
+      "UNKNOWN",
+      "UNSATISFIED",
+      "SATISFIED"
+    ],
+    "evidence_rules": [
+      {
+        "disposition": "HOLD",
+        "evidence_state": "UNSATISFIED",
+        "id": "OE1_REQUIRED_ABSENT",
+        "rule": "A complete authenticated inventory proves that required governed evidence is absent."
+      },
+      {
+        "disposition": "HOLD",
+        "evidence_state": "UNSATISFIED",
+        "id": "OE2_POLICY_FALSE",
+        "rule": "Parseable, schema-valid, semantically mapped evidence definitively violates an explicit policy predicate."
+      },
+      {
+        "disposition": "HOLD",
+        "evidence_state": "UNSATISFIED",
+        "id": "OE3_TRUST_OR_TIME_FALSE",
+        "rule": "Parseable evidence definitively has an unauthorized producer, wrong artifact binding, or validity interval excluding validation_time."
+      },
+      {
+        "disposition": "INDETERMINATE",
+        "evidence_state": "UNKNOWN",
+        "id": "OE4_UNREADABLE",
+        "rule": "Required evidence exists but cannot be parsed, schema-validated, decoded, or read safely."
+      },
+      {
+        "disposition": "INDETERMINATE",
+        "evidence_state": "UNKNOWN",
+        "id": "OE5_UNRESOLVED_CONTRADICTION",
+        "rule": "Two or more trusted evidence records disagree on a governed field and no explicit precedence or combine rule resolves them."
+      },
+      {
+        "disposition": "INDETERMINATE",
+        "evidence_state": "UNKNOWN",
+        "id": "OE6_SEMANTICALLY_UNJUDGEABLE",
+        "rule": "Evidence is syntactically valid but the policy supplies no deterministic mapping from its claim to true or false."
+      },
+      {
+        "disposition": "INDETERMINATE",
+        "evidence_state": "UNKNOWN",
+        "id": "OE7_INVENTORY_UNKNOWN",
+        "rule": "Repository or evidence inventory completeness cannot be established, so absence cannot be proven."
+      },
+      {
+        "disposition": "READY",
+        "evidence_state": "SATISFIED",
+        "id": "OE8_ALL_SATISFIED",
+        "rule": "Every governed requirement is deterministically satisfied and no requirement is UNKNOWN or UNSATISFIED."
+      }
+    ],
+    "evaluation_order": [
+      "mechanism_status",
+      "authority_status",
+      "evidence_state"
+    ],
+    "mechanism_nonconformant_output_rule": "V7_MECHANISM_NONCONFORMANT",
+    "mechanism_unknown_output_rule": "V8_MECHANISM_UNKNOWN",
+    "mixed_evidence_rule": "UNKNOWN_dominates_UNSATISFIED_dominates_SATISFIED"
+  },
+  "pass_conditions": {
+    "allowed_false_ready": 0,
+    "allowed_missed_authority_conflicts": 0,
+    "comparator_accuracy_gates_proof": false,
+    "every_governed_repeat_must_match": true,
+    "exact_joint_match_required": true,
+    "exact_provenance_required": true,
+    "input_pack_must_remain_sealed_until_implementation_freeze": true,
+    "missing_governed_output_counts_as_failure": true,
+    "model_override_allowed": false,
+    "oracle_pack_must_remain_sealed_until_output_commitment": true,
+    "post_reveal_exclusions_allowed": false,
+    "proof_gating_path": "governed"
+  },
+  "provenance_contract": {
+    "array_ordering": {
+      "authority_chains": "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id)",
+      "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
+      "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
+      "records_within_authority_chain": "semantic_chain_order_from_anchor_or_delegation_to_claim",
+      "unevaluated_stages": "stage_order_suffix"
+    },
+    "authority_chain_required_fields": [
+      "issuer_id",
+      "claim_entry_id",
+      "records"
+    ],
+    "authority_record_required_fields": [
+      "record_id",
+      "payload_sha256"
+    ],
+    "authority_record_digest": "sha256_of_utf8_rfc8785_jcs_record_with_top_level_signature_removed_when_present",
+    "conflict_minimum_authority_chains": 2,
+    "exact_match": "ordered_paths_record_ids_and_sha256_digests",
+    "file_record_required_fields": [
+      "path",
+      "sha256"
+    ],
+    "ordered_rules": [
+      {
+        "id": "PV1_REACHED_STAGES",
+        "rule": "Record exact paths, record IDs, and digests for every evaluation stage reached; list every stage skipped by an earlier terminal classification in unevaluated_stages."
+      },
+      {
+        "id": "PV2_AUTHORITY_CHAIN",
+        "rule": "Each decisive authority claim records issuer_id, claim_entry_id, and ordered records from its trust anchor or delegation through the claim, with the RFC 8785 payload SHA-256 for every record."
+      },
+      {
+        "id": "PV3_CONFLICT_COVERAGE",
+        "rule": "AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid."
+      },
+      {
+        "id": "PV4_SHORT_CIRCUIT",
+        "rule": "When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance."
+      }
+    ],
+    "path_format": "relative_posix_without_dot_segments_and_present_in_permitted_inputs_manifest",
+    "provenance_required_fields": [
+      "authority_bundle_path",
+      "authority_bundle_sha256",
+      "authority_chains",
+      "contract_records",
+      "evidence_records",
+      "unevaluated_stages"
+    ],
+    "sha256_format": "sha256:<64_lowercase_hex>",
+    "stage_order": [
+      "authority",
+      "contract",
+      "evidence"
+    ],
+    "unevaluated_stages_rule": "ordered_suffix_of_stage_order"
+  },
+  "schema_version": "agent-context-proof-protocol-v0.3.5",
+  "scoring_population": {
+    "case_accuracy_denominator": "included_unique_case_ids",
+    "candidate_population": "all_case_ids_in_committed_sealed_input_pack",
+    "comparator_accuracy_gates_proof": false,
+    "comparator_population": "same_included_case_ids",
+    "exclusion_deadline": "before_first_path_execution_and_before_oracle_reveal",
+    "governed_missing_or_error": "count_as_failure_never_exclude",
+    "minimum_after_exclusions": {
+      "cases": 12,
+      "distinct_primary_authors": 4,
+      "independence_clusters": 4
+    },
+    "ordered_rules": [
+      {
+        "id": "P1_CANDIDATES",
+        "rule": "The candidate population is every case ID in the digest-committed sealed input pack."
+      },
+      {
+        "id": "P2_INCLUDE",
+        "rule": "Include a candidate only when it passed blinded leakage review before pack commitment and passes structural validation before any path executes."
+      },
+      {
+        "id": "P3_EXCLUDE",
+        "rule": "Freeze exclusions, reasons, and their digest before first path execution and oracle reveal; publish every exclusion."
+      },
+      {
+        "id": "P4_DENOMINATOR",
+        "rule": "Every evaluated case means every included unique case ID, and that fixed set is the governed case-accuracy denominator."
+      },
+      {
+        "id": "P5_GOVERNED_FAILURE",
+        "rule": "A missing, errored, or schema-invalid governed output is a failed included case and never an exclusion."
+      },
+      {
+        "id": "P6_REPEATS",
+        "rule": "Every governed repeat must match; case accuracy uses unique cases while the raw repeat matrix is reported separately."
+      },
+      {
+        "id": "P7_COMPARATORS",
+        "rule": "Run required comparators on the same included cases and report missing outputs and all metrics, but comparator accuracy never changes governed pass or fail."
+      },
+      {
+        "id": "P8_NO_POST_REVEAL",
+        "rule": "No output, trace, model behavior, or revealed oracle label may cause exclusion from the frozen population."
+      },
+      {
+        "id": "P9_FLOORS",
+        "rule": "No pass claim is permitted unless at least twelve cases, four eligible primary authors, and four independence clusters remain after exclusions."
+      }
+    ],
+    "post_reveal_exclusions_allowed": false,
+    "proof_gating_path": "governed",
+    "repeat_reporting": "nested_within_case_not_denominator_inflation"
+  },
+  "status": "PROTOCOL_DRAFT",
+  "valid_output_combinations": [
+    {
+      "authority_status": "VALID",
+      "disposition": "READY",
+      "id": "V1_READY",
+      "mechanism_status": "CONFORMANT",
+      "rule": "All governed evidence requirements are satisfied."
+    },
+    {
+      "authority_status": "VALID",
+      "disposition": "HOLD",
+      "id": "V2_HOLD",
+      "mechanism_status": "CONFORMANT",
+      "rule": "A governed evidence requirement is proven absent or definitively false."
+    },
+    {
+      "authority_status": "VALID",
+      "disposition": "INDETERMINATE",
+      "id": "V3_EVIDENCE_UNKNOWN",
+      "mechanism_status": "CONFORMANT",
+      "rule": "Authority is valid but the governed evidence claim cannot be safely resolved."
+    },
+    {
+      "authority_status": "CONFLICT",
+      "disposition": "AUTHORITY_CONFLICT",
+      "id": "V4_AUTHORITY_CONFLICT",
+      "mechanism_status": "CONFORMANT",
+      "rule": "The conflict algorithm finds incompatible undominated valid claims."
+    },
+    {
+      "authority_status": "INVALID",
+      "disposition": "INDETERMINATE",
+      "id": "V5_AUTHORITY_INVALID",
+      "mechanism_status": "CONFORMANT",
+      "rule": "No valid matching claim remains and a matching claim is definitively invalid; no release decision is permitted."
+    },
+    {
+      "authority_status": "INDETERMINATE",
+      "disposition": "INDETERMINATE",
+      "id": "V6_AUTHORITY_UNKNOWN",
+      "mechanism_status": "CONFORMANT",
+      "rule": "Authority validity cannot be established."
+    },
+    {
+      "authority_status": "INDETERMINATE",
+      "disposition": "INDETERMINATE",
+      "id": "V7_MECHANISM_NONCONFORMANT",
+      "mechanism_status": "NONCONFORMANT",
+      "rule": "Detected end-to-end rule deviation makes the record and its authority finding untrustworthy."
+    },
+    {
+      "authority_status": "INDETERMINATE",
+      "disposition": "INDETERMINATE",
+      "id": "V8_MECHANISM_UNKNOWN",
+      "mechanism_status": "INDETERMINATE",
+      "rule": "Insufficient execution evidence makes the record and its authority finding untrustworthy."
+    }
+  ]
+}

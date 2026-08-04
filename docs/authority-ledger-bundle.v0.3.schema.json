@@ -1,0 +1,203 @@
+{
+  "$defs": {
+    "anchor": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor_id": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/id"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "issuer_id": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/id"
+        },
+        "key_id": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/key_id"
+        },
+        "lineage_id": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/id"
+        },
+        "not_after": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/timestamp"
+        },
+        "not_before": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/timestamp"
+        },
+        "permissions": {
+          "items": {
+            "enum": [
+              "claim",
+              "delegate",
+              "recover",
+              "revoke",
+              "rotate",
+              "set_precedence"
+            ]
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "public_key_base64url": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/public_key"
+        },
+        "replacement_permissions_ceiling": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/permissions"
+        },
+        "scope": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/scope"
+        }
+      },
+      "required": [
+        "anchor_id",
+        "issuer_id",
+        "key_id",
+        "public_key_base64url",
+        "lineage_id",
+        "epoch",
+        "permissions",
+        "scope",
+        "not_before"
+      ],
+      "type": "object"
+    },
+    "coordinate": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "minLength": 1,
+          "not": {
+            "const": "*"
+          },
+          "pattern": "^[^*]+$",
+          "type": "string"
+        },
+        "artifact": {
+          "minLength": 1,
+          "not": {
+            "const": "*"
+          },
+          "pattern": "^[^*]+$",
+          "type": "string"
+        },
+        "organization": {
+          "minLength": 1,
+          "not": {
+            "const": "*"
+          },
+          "pattern": "^[^*]+$",
+          "type": "string"
+        },
+        "repository": {
+          "minLength": 1,
+          "not": {
+            "const": "*"
+          },
+          "pattern": "^[^*]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "organization",
+        "repository",
+        "artifact",
+        "action"
+      ],
+      "type": "object"
+    },
+    "lineage_head": {
+      "additionalProperties": false,
+      "properties": {
+        "entry_id": {
+          "description": "The anchor_id or signed entry_id of the committed lineage head record.",
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/id"
+        },
+        "epoch": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "lineage_id": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/id"
+        },
+        "payload_sha256": {
+          "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/key_id"
+        }
+      },
+      "required": [
+        "lineage_id",
+        "epoch",
+        "entry_id",
+        "payload_sha256"
+      ],
+      "type": "object"
+    },
+    "recovery_anchor": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/anchor"
+        },
+        {
+          "required": [
+            "replacement_permissions_ceiling"
+          ]
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/heronyogi/agent-context-proof/docs/authority-ledger-bundle.v0.3.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "case_coordinate": {
+      "$ref": "#/$defs/coordinate"
+    },
+    "entries": {
+      "items": {
+        "$ref": "authority-ledger-entry.v0.3.schema.json"
+      },
+      "type": "array"
+    },
+    "lineage_heads": {
+      "items": {
+        "$ref": "#/$defs/lineage_head"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "recovery_trust_anchors": {
+      "items": {
+        "$ref": "#/$defs/recovery_anchor"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "agent-context-proof-authority-bundle-v0.3.1"
+    },
+    "trust_anchors": {
+      "items": {
+        "$ref": "#/$defs/anchor"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "validation_time": {
+      "$ref": "authority-ledger-entry.v0.3.schema.json#/$defs/timestamp"
+    }
+  },
+  "required": [
+    "schema_version",
+    "validation_time",
+    "case_coordinate",
+    "trust_anchors",
+    "recovery_trust_anchors",
+    "lineage_heads",
+    "entries"
+  ],
+  "title": "Agent Context Proof v0.3 authority-ledger bundle",
+  "type": "object"
+}

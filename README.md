@@ -6,7 +6,38 @@ through governed context rather than treating retrieved prose as authority.
 The repository uses a wholly synthetic release, **Orion 1.0.0**. No proprietary
 source, production data, or internal names are included.
 
+> **Repository state:** v0.3 is a protocol draft under independent review. It
+> has no evaluator implementation, sealed cases, or experimental result. The
+> approved v0.2.2 implementation and results remain separate historical work.
+
+Reviewers should start with the
+[`v0.3 reviewer guide`](docs/v0.3-review-guide.md), which maps the normative
+artifacts, review boundary, workflow triggers, and validation commands.
+
 ![Governed context architecture](docs/agent-interactions.png)
+
+## v0.3 protocol draft
+
+The approved v0.2.2 proof is frozen at merge commit `3741aae`. The next
+experiment is deliberately protocol-first: it separates mechanism conformance
+from authority validity, introduces an explicit `AUTHORITY_CONFLICT`
+disposition, requires independently authored blind case families, and specifies
+a genuinely independent retrieval-plus-rules comparator with equivalent input
+access.
+
+No v0.3 implementation or result is claimed. Implementation remains gated on
+independent review of:
+
+- [`docs/proof-protocol.v0.3.md`](docs/proof-protocol.v0.3.md);
+- [`docs/proof-protocol.v0.3.json`](docs/proof-protocol.v0.3.json); and
+- [`docs/case-authoring.v0.3.md`](docs/case-authoring.v0.3.md).
+
+The draft now also pins strict
+[`authority-ledger entry`](docs/authority-ledger-entry.v0.3.schema.json) and
+[`bundle`](docs/authority-ledger-bundle.v0.3.schema.json) schemas plus
+reproducible [Ed25519/JCS reference vectors](tests/fixtures/authority-ledger.v0.3.vectors.json).
+The vectors contain intentionally public, test-only private seeds for
+conformance testing. They are not production authority data or credentials.
 
 ## What v0.2 tests
 
@@ -73,7 +104,11 @@ No API key is needed for the deterministic evaluator or offline tests. The setup
 uses a normal wheel install because some Python 3.13 environments do not expose
 editable installs consistently.
 
-## Reproduce the live comparison
+## Reproduce the approved v0.2 live comparison
+
+This is a manual, descriptive v0.2 workflow. It is not part of v0.3 protocol
+review, does not run on pull requests or pushes, and does not open the v0.3
+implementation gate.
 
 Put an OpenAI project API key in the ignored `.env.local` file:
 
@@ -154,7 +189,7 @@ this project, however, so they are not an independently constructed blind set.
 context/                 external trust root plus governed contracts
 demo/repository/         synthetic repository evidence and distractors
 src/contextproof/        deterministic evaluator and one-tool agent
-tests/                   offline invariants and hostile-contract tests
+tests/                   offline invariants and synthetic test-only fixtures
 evals/                   fixtures and live matched-path comparison
 docs/                    protocol, prompts, diagrams, and compact results
 ```
@@ -187,8 +222,11 @@ controls, raw repeat-agreement reporting, limitations, and next production step.
 
 ## Security
 
-`.env.local` is ignored and remains local. CI is fully offline after dependency
-installation unless a maintainer deliberately invokes the manual live workflow.
+`.env.local` is ignored and remains local. The `CI` workflow runs automatically
+for pull requests and pushes to `main`; after dependency installation its proof
+commands make no API calls. `Live agent eval` runs only through manual
+`workflow_dispatch`, requires the `OPENAI_API_KEY` repository secret, and uploads
+the v0.2 result as a 14-day artifact. It is outside v0.3 protocol review.
 
 ## License
 

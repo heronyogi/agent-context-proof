@@ -1,5 +1,7 @@
 name: Live agent eval
 
+# Manual v0.2 descriptive comparison. This is not a v0.3 protocol review gate.
+
 on:
   workflow_dispatch:
 
