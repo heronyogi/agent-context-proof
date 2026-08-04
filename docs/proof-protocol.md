@@ -75,8 +75,8 @@ fixed cases: 24/24 observed run outcomes per path, with zero false-ready answers
 Every case produced the same decision in each repeat. These counts describe the
 raw matrix; they are not 24 independent Bernoulli trials.
 
-Governed runs observed means of 2,142.58 tokens and 6.64 seconds; full-packet
-reasoning observed means of 3,997.42 tokens and 12.45 seconds. Those measurements
+Governed runs observed means of 2,142.04 tokens and 6.83 seconds; full-packet
+reasoning observed means of 3,914.42 tokens and 12.13 seconds. Those measurements
 apply only to this model, prompt, API configuration, and implementation. The
 baseline's perfect agreement means v0.2 claims no accuracy or general efficiency
 advantage. The exact report digest demonstrates deterministic serialization

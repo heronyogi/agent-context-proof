@@ -163,10 +163,10 @@
     "observed_false_ready": 0,
     "observed_false_ready_rate": 0.0,
     "observed_mean_input_tokens": 1768.62,
-    "observed_mean_latency_seconds": 6.638971,
+    "observed_mean_latency_seconds": 6.826586,
     "observed_mean_model_requests": 2.0,
-    "observed_mean_output_tokens": 373.96,
-    "observed_mean_total_tokens": 2142.58,
+    "observed_mean_output_tokens": 373.42,
+    "observed_mean_total_tokens": 2142.04,
     "observed_non_ready_run_count": 21,
     "observed_run_count": 24
   },
@@ -183,18 +183,19 @@
     "observed_false_ready": 0,
     "observed_false_ready_rate": 0.0,
     "observed_mean_input_tokens": 3160.0,
-    "observed_mean_latency_seconds": 12.445634,
+    "observed_mean_latency_seconds": 12.128229,
     "observed_mean_model_requests": 1.0,
-    "observed_mean_output_tokens": 837.42,
-    "observed_mean_total_tokens": 3997.42,
+    "observed_mean_output_tokens": 754.42,
+    "observed_mean_total_tokens": 3914.42,
     "observed_non_ready_run_count": 21,
     "observed_run_count": 24
   },
   "repository_packet_instructions_sha256": "sha256:abe4a80141dc255de8dc2b0bf2ed4c4e137c06a285ef6e2516f40d1e13d6f4fa",
   "result_revision": {
+    "harness_commit": "f6713dcfc976db0a7af3a2f4a0c7427451b0e715",
     "live_schema": "agent-context-proof-eval-v0.2.2",
     "model_calls_reexecuted": true,
-    "summary": "Fresh reference run with model-facing source digests and enforced answer/tool/oracle agreement."
+    "summary": "Fresh reference run from the SHA-pinned harness after adding run_case-shaped and saved-result aggregation regressions."
   },
   "run_observations_per_path": 24,
   "schema_version": "agent-context-proof-result-v0.2.2",

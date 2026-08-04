@@ -97,8 +97,8 @@ On 2026-08-03, three repeats produced:
 
 | Path | Observed exact matches | False ready | Mean model API requests | Mean tokens | Mean latency |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Governed context | 24 / 24 | 0 | 2.0 | 2,142.58 | 6.64 s |
-| Full repository packet | 24 / 24 | 0 | 1.0 | 3,997.42 | 12.45 s |
+| Governed context | 24 / 24 | 0 | 2.0 | 2,142.04 | 6.83 s |
+| Full repository packet | 24 / 24 | 0 | 1.0 | 3,914.42 | 12.13 s |
 
 All 12 governed run observations with corrupted, stale, unauthorized, or
 ambiguous contracts returned `INDETERMINATE`; none returned `READY`. The
