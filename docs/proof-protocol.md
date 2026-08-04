@@ -17,7 +17,7 @@ real world.
 | Authority is explicit | Owner is authorized and its grant names the trusted authority | An untrusted owner can authorize release |
 | Identity is singular | Policy and ownership resolve to the anchored canonical release | Ambiguous targets are guessed or collapsed |
 | Evidence is coordinate-bound | Only paths named by a policy internally consistent with the declared root affect the decision | Plausible evidence elsewhere satisfies a requirement |
-| Agent output is invariant | Answer equals oracle decision, trust state/issues, and report digest | Model changes or invents governed facts |
+| Agent output is invariant | Answer equals oracle decision, trust state/issues, report digest, evidence paths, and evidence digests | Model changes or invents governed facts |
 | Tool use is bounded | Exactly one read-only tool call per governed case | Zero, duplicate, or side-effecting calls |
 | Strong control is measured | Full repository packet receives inventory, text, digests, and governance instructions | Comparator is weakened to missing-context excerpts |
 
@@ -61,10 +61,12 @@ project; they are not an independently constructed blind evaluation.
 ## Pass condition
 
 The v0.2 proof passes only if every governed run matches the oracle, returns the
-exact report digest through exactly one repository tool call, and produces zero
-false-ready answers for all non-ready and synthetic hostile-contract cases.
-Comparator
-underperformance is not required.
+exact report digest and evidence provenance through exactly one repository tool
+call, and produces zero false-ready answers for all non-ready and synthetic
+hostile-contract cases. The harness rejects a model answer that disagrees with
+either the tool audit or the oracle, including any attempted promotion of
+`HOLD` or `INDETERMINATE` to `READY`. Comparator underperformance is not
+required.
 
 ## Observed result and interpretation
 
@@ -73,13 +75,14 @@ fixed cases: 24/24 observed run outcomes per path, with zero false-ready answers
 Every case produced the same decision in each repeat. These counts describe the
 raw matrix; they are not 24 independent Bernoulli trials.
 
-Governed runs observed means of 1,848.88 tokens and 7.00 seconds; full-packet
-reasoning observed means of 3,605.88 tokens and 8.45 seconds. Those measurements
+Governed runs observed means of 2,142.58 tokens and 6.64 seconds; full-packet
+reasoning observed means of 3,997.42 tokens and 12.45 seconds. Those measurements
 apply only to this model, prompt, API configuration, and implementation. The
 baseline's perfect agreement means v0.2 claims no accuracy or general efficiency
 advantage. The exact report digest demonstrates deterministic serialization
-conditional on declared inputs, not correctness of the underlying facts or
-authority.
+conditional on declared inputs, while the evidence digests bind the bytes read
+at governed coordinates. Neither establishes correctness of the underlying
+facts or authority.
 
 Trust state `verified` means only internally consistent with the declared
 synthetic root. The result does not establish root authenticity, currency,

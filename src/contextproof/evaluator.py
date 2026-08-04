@@ -660,6 +660,7 @@ def _evaluate_requirement(root: Path, rule: Mapping[str, Any]) -> EvidenceRecord
     finding = "requirement could not be evaluated"
     try:
         path = _resolve(root, source)
+        sources = (source,)
         if not path.exists():
             state = RequirementState.MISSING
             finding = "required governed evidence is absent"
@@ -668,7 +669,6 @@ def _evaluate_requirement(root: Path, rule: Mapping[str, Any]) -> EvidenceRecord
             observed = "not a file"
             finding = "governed evidence path is not a file"
         else:
-            sources = (source,)
             source_digests = (_file_digest(path),)
             if check == "path_exists":
                 observed = "present"

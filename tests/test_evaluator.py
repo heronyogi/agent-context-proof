@@ -180,7 +180,9 @@ def test_published_v01_proof_result_is_coherent() -> None:
     )
 
 
-def test_v02_proof_result_is_bound_to_current_cases_and_trust_root() -> None:
+def test_v02_proof_result_is_bound_to_current_cases_and_trust_root(
+    tmp_path: Path,
+) -> None:
     result = json.loads(
         (PROJECT_ROOT / "docs" / "proof-result.v0.2.json").read_text(
             encoding="utf-8"
@@ -192,7 +194,7 @@ def test_v02_proof_result_is_bound_to_current_cases_and_trust_root() -> None:
     trust_digest = "sha256:" + hashlib.sha256(
         (CONTRACT_ROOT / "trust-root.json").read_bytes()
     ).hexdigest()
-    assert result["schema_version"] == "agent-context-proof-result-v0.2.1"
+    assert result["schema_version"] == "agent-context-proof-result-v0.2.2"
     assert result["case_manifest_sha256"] == case_digest
     assert result["trust_root_sha256"] == trust_digest
     prompt_digest = "sha256:" + hashlib.sha256(
@@ -203,6 +205,9 @@ def test_v02_proof_result_is_bound_to_current_cases_and_trust_root() -> None:
         PACKET_BASELINE_INSTRUCTIONS
     )
     assert result["proof_pass"] is True
+    assert result["fixed_case_count"] == 8
+    assert result["repeat_count"] == 3
+    assert result["run_observations_per_path"] == 24
     assert result["governed_metrics"]["observed_exact_matches"] == 24
     assert result["governed_synthetic_hostile_false_ready_observations"] == 0
     assert all(
@@ -214,6 +219,25 @@ def test_v02_proof_result_is_bound_to_current_cases_and_trust_root() -> None:
         *result["repository_packet_metrics"],
     }
     assert not any("ci95" in key or "wilson" in key for key in metric_keys)
+    assert result["result_revision"]["model_calls_reexecuted"] is True
+
+    manifest = {
+        item["case_id"]: item
+        for item in (
+            json.loads(line)
+            for line in (PROJECT_ROOT / "evals" / "cases.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        )
+    }
+    for recorded in result["cases"]:
+        case = manifest[recorded["case_id"]]
+        root = build_case_repository(case["fixture"], tmp_path / case["case_id"])
+        report = evaluate_context(root, contract_root=root / "context")
+        assert recorded["oracle_decision"] == report.decision.value
+        assert recorded["oracle_trust_state"] == report.contract_trust.state.value
+        assert recorded["oracle_report_digest"] == report.report_digest
 
 
 def test_cli_discovers_checkout_from_nested_directory() -> None:

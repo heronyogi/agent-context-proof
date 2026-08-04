@@ -29,6 +29,7 @@ def test_agents_sdk_usage_types_construct() -> None:
 def test_agent_exposes_one_read_only_tool() -> None:
     agent = build_agent()
     assert [tool.name for tool in agent.tools] == ["inspect_release_context"]
+    assert "evidence_digests" in agent.output_type.model_fields
 
 
 def test_tool_returns_exact_governed_decision(complete_repository: Path) -> None:
@@ -41,8 +42,33 @@ def test_tool_returns_exact_governed_decision(complete_repository: Path) -> None
     assert payload.decision == Decision.READY
     assert payload.trust_state == ContractTrustState.VERIFIED
     assert payload.trust_issues == []
+    assert all(item.source_digests for item in payload.requirements)
+    assert all(
+        digest.startswith("sha256:")
+        for item in payload.requirements
+        for digest in item.source_digests
+    )
     assert len(runtime.tool_calls) == 1
     assert runtime.tool_calls[0].report_digest == payload.report_digest
+    assert runtime.tool_calls[0].source_digests
+
+
+def test_missing_evidence_keeps_its_governed_coordinate(
+    complete_repository: Path,
+) -> None:
+    (complete_repository / "evidence" / "security-review.json").unlink()
+    runtime = AgentRuntime(
+        repository_root=complete_repository,
+        contract_root=PROJECT_ROOT / "context",
+    )
+    payload = evaluate_release_reference(runtime, "Orion 1.0.0")
+    requirement = next(
+        item
+        for item in payload.requirements
+        if item.requirement_id == "requirement:security-review"
+    )
+    assert requirement.evidence_paths == ["evidence/security-review.json"]
+    assert requirement.source_digests == []
 
 
 def test_tool_refuses_unsupported_release(complete_repository: Path) -> None:

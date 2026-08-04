@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Compare governed context with a full repository-packet reasoning baseline."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import argparse
@@ -9,10 +11,18 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = PROJECT_ROOT / "src"
+SOURCE_PATH = str(SOURCE_ROOT)
+if SOURCE_PATH in sys.path:
+    sys.path.remove(SOURCE_PATH)
+sys.path.insert(0, SOURCE_PATH)
 
 from agents import Agent, Runner, trace
 from dotenv import load_dotenv
@@ -21,12 +31,13 @@ from contextproof.agent import (
     DEFAULT_MODEL,
     DEFAULT_PROMPT_PATH,
     AgentAnswer,
+    AgentRunRecord,
+    AnswerStatus,
     TokenUsage,
     run_agent,
 )
-from contextproof.evaluator import Decision, evaluate_context_envelope
+from contextproof.evaluator import ContextReport, Decision, evaluate_context_envelope
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = PROJECT_ROOT / "evals" / "results"
 PACKET_BASELINE_INSTRUCTIONS = (
     "Reason only from the supplied complete repository packet. It includes "
@@ -179,6 +190,43 @@ async def run_repository_packet(
     )
 
 
+def _oracle_provenance(oracle: ContextReport) -> tuple[list[str], list[str]]:
+    evidence_paths = sorted(
+        {path for item in oracle.evidence for path in item.source_paths}
+    )
+    source_digests = sorted(
+        {digest for item in oracle.evidence for digest in item.source_digests}
+    )
+    return evidence_paths, source_digests
+
+
+def governed_result_matches_oracle(
+    governed: AgentRunRecord, oracle: ContextReport
+) -> bool:
+    """Accept a governed answer only when model, tool audit, and oracle agree."""
+
+    evidence_paths, source_digests = _oracle_provenance(oracle)
+    if len(governed.tool_calls) != 1:
+        return False
+    audit = governed.tool_calls[0]
+    return (
+        governed.answer.status == AnswerStatus.ANSWERED
+        and governed.answer.decision == oracle.decision
+        and governed.answer.target_release == oracle.target_release
+        and governed.answer.trust_state == oracle.contract_trust.state
+        and governed.answer.trust_issues == list(oracle.contract_trust.issues)
+        and governed.answer.report_digest == oracle.report_digest
+        and sorted(governed.answer.evidence_paths) == evidence_paths
+        and sorted(governed.answer.evidence_digests) == source_digests
+        and audit.status == AnswerStatus.ANSWERED
+        and audit.decision == oracle.decision
+        and audit.trust_state == oracle.contract_trust.state
+        and audit.report_digest == oracle.report_digest
+        and sorted(audit.evidence_paths) == evidence_paths
+        and sorted(audit.source_digests) == source_digests
+    )
+
+
 async def run_case(
     case: dict[str, str], *, model: str, repeat: int
 ) -> dict[str, object]:
@@ -214,17 +262,7 @@ async def run_case(
         )
         packet_latency = time.perf_counter() - packet_started
 
-        governed_pass = (
-            governed.answer.decision == oracle.decision
-            and governed.answer.target_release == oracle.target_release
-            and governed.answer.trust_state == oracle.contract_trust.state
-            and governed.answer.trust_issues == list(oracle.contract_trust.issues)
-            and governed.answer.report_digest == oracle.report_digest
-            and len(governed.tool_calls) == 1
-            and governed.tool_calls[0].decision == oracle.decision
-            and governed.tool_calls[0].trust_state == oracle.contract_trust.state
-            and governed.tool_calls[0].report_digest == oracle.report_digest
-        )
+        governed_pass = governed_result_matches_oracle(governed, oracle)
         packet_pass = (
             packet_answer.decision == oracle.decision
             and packet_answer.trust_state == oracle.contract_trust.state
@@ -356,7 +394,7 @@ async def run_eval(model: str, repeats: int) -> int:
         and hostile_false_ready == 0
     )
     payload = {
-        "schema_version": "agent-context-proof-eval-v0.2.1",
+        "schema_version": "agent-context-proof-eval-v0.2.2",
         "model": model,
         "case_manifest_sha256": _raw_digest(PROJECT_ROOT / "evals" / "cases.jsonl"),
         "governed_prompt_sha256": _raw_digest(DEFAULT_PROMPT_PATH),

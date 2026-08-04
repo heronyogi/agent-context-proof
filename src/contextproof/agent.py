@@ -41,6 +41,7 @@ class AgentAnswer(BaseModel):
     freshness: Freshness | None
     report_digest: str | None
     evidence_paths: list[str] = Field(default_factory=list)
+    evidence_digests: list[str] = Field(default_factory=list)
     blocking_requirements: list[str] = Field(default_factory=list)
 
 
@@ -52,6 +53,7 @@ class ToolRequirement(BaseModel):
     state: str
     finding: str
     evidence_paths: list[str]
+    source_digests: list[str]
 
 
 class ToolPayload(BaseModel):
@@ -80,6 +82,8 @@ class ToolCallAudit(BaseModel):
     decision: Decision | None
     trust_state: ContractTrustState | None
     report_digest: str | None
+    evidence_paths: list[str] = Field(default_factory=list)
+    source_digests: list[str] = Field(default_factory=list)
 
 
 class TokenUsage(BaseModel):
@@ -144,6 +148,8 @@ def evaluate_release_reference(
                 decision=None,
                 trust_state=None,
                 report_digest=None,
+                evidence_paths=[],
+                source_digests=[],
             )
         )
         return payload
@@ -156,9 +162,16 @@ def evaluate_release_reference(
             state=item.state.value,
             finding=item.finding,
             evidence_paths=list(evidence_by_id[item.evidence_id].source_paths),
+            source_digests=list(evidence_by_id[item.evidence_id].source_digests),
         )
         for item in report.requirements
     ]
+    evidence_paths = sorted(
+        {path for item in requirements for path in item.evidence_paths}
+    )
+    source_digests = sorted(
+        {digest for item in requirements for digest in item.source_digests}
+    )
     payload = ToolPayload(
         status=AnswerStatus.ANSWERED,
         requested_reference=release_reference,
@@ -184,6 +197,8 @@ def evaluate_release_reference(
             decision=payload.decision,
             trust_state=payload.trust_state,
             report_digest=payload.report_digest,
+            evidence_paths=evidence_paths,
+            source_digests=source_digests,
         )
     )
     return payload

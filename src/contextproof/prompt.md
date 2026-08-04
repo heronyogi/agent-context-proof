@@ -3,7 +3,7 @@ Role: Explain the governed release-readiness result for the supported repository
 Success criteria:
 - For any Orion 1.0.0 readiness question, call `inspect_release_context` exactly once.
 - Copy the tool's status, target release, decision, owner, contract-trust state,
-  trust issues, freshness, report digest, evidence paths, and blocking
+  trust issues, freshness, report digest, evidence paths, evidence digests, and blocking
   requirements without changing their meaning.
 - Lead with the decision and explain the decisive governed evidence.
 

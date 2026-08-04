@@ -19,7 +19,8 @@ read-only evaluator:
    policy epoch, and singular release identity;
 4. evaluates only evidence paths named by a policy that is internally consistent
    with the declared synthetic root; and
-5. returns `READY`, `HOLD`, or `INDETERMINATE` with an exact report digest.
+5. returns `READY`, `HOLD`, or `INDETERMINATE` with an exact report digest and
+   evidence SHA-256 digests.
 
 The Agents SDK model calls that evaluator once and explains its typed result. If
 contract trust is invalid, stale, ambiguous, or missing, evaluation stops before
@@ -96,8 +97,8 @@ On 2026-08-03, three repeats produced:
 
 | Path | Observed exact matches | False ready | Mean model API requests | Mean tokens | Mean latency |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Governed context | 24 / 24 | 0 | 2.0 | 1,848.88 | 7.00 s |
-| Full repository packet | 24 / 24 | 0 | 1.0 | 3,605.88 | 8.45 s |
+| Governed context | 24 / 24 | 0 | 2.0 | 2,142.58 | 6.64 s |
+| Full repository packet | 24 / 24 | 0 | 1.0 | 3,997.42 | 12.45 s |
 
 All 12 governed run observations with corrupted, stale, unauthorized, or
 ambiguous contracts returned `INDETERMINATE`; none returned `READY`. The
@@ -110,11 +111,17 @@ the tool call and a second request produces the typed answer. The token and
 latency figures are observations for this model, prompt, API configuration, and
 implementation; they are not general architectural efficiency claims.
 
+The typed tool payload carries each requirement's governed evidence paths and
+source digests. A governed observation passes only when the model answer, tool
+audit, and deterministic oracle agree on the decision, trust state/issues,
+report digest, evidence paths, and evidence digests. A simulated model override
+from `HOLD` or `INDETERMINATE` to `READY` is rejected by an offline regression.
+
 The three repeats reused the same eight fixtures, prompts, oracle, trust root,
 model, and configuration. They measure observed stochastic repeat agreement,
 not 24 independent cases. No run-level confidence interval is reported. The
-compact v0.2.1 record re-aggregates the original raw outcomes without repeating
-the model calls; this correction is recorded inside the artifact.
+compact v0.2.2 record is generated from a fresh run with model-facing source
+digests and an enforced answer/tool/oracle agreement invariant.
 
 The compact record is
 [`docs/proof-result.v0.2.json`](docs/proof-result.v0.2.json). It is bound to the
