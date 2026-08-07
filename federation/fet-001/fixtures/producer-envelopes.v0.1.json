@@ -1,0 +1,205 @@
+{
+  "fixture_schema": "fet001-producer-envelopes-v0.1.0",
+  "trial_id": "FET-001",
+  "fixture_class": "public-development",
+  "source": "https://github.com/heronyogi/agent-governance-systems/blob/main/trials/FET-001/fixtures/development-cases.v0.1.json",
+  "context_envelope_schema_sha256": "d8fc7ba77eb6172a91dc212044dc3d7670f8db8ce260cc748bfaffc8f5ce9f6d",
+  "fixtures": [
+    {
+      "case_id": "FET001-DEV-001",
+      "family": "READY_ABSENT_PERMISSION",
+      "envelope": {
+        "envelope_schema": "0.1.0",
+        "trial_id": "FET-001",
+        "transport_interface": {
+          "id": "federated-context-envelope",
+          "version": "0.1"
+        },
+        "producer": {
+          "system_id": "agent-context-integrity",
+          "system_version": "0.2.2",
+          "source_interface": {
+            "id": "governed-repository-decision",
+            "version": "0.2"
+          }
+        },
+        "subject": {
+          "ref": "synthetic:orion-release",
+          "scope": [
+            "release:orion:1.0.0"
+          ]
+        },
+        "purpose": {
+          "id": "release-publish",
+          "description": "Evaluate context for publishing the synthetic release.",
+          "audience": [
+            "release-operator"
+          ]
+        },
+        "decision": "READY",
+        "trust": {
+          "state": "verified",
+          "issues": []
+        },
+        "policy_refs": [
+          {
+            "id": "policy:orion-release",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "id": "evidence:orion-tests",
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ],
+        "context_authority_refs": [
+          {
+            "id": "root:orion",
+            "kind": "trust-root",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          }
+        ],
+        "limitations": [
+          "The decision does not grant downstream action permission."
+        ],
+        "disagreements": [],
+        "created_at": "2026-08-07T12:00:00Z",
+        "expires_at": "2026-08-07T13:00:00Z"
+      },
+      "envelope_sha256": "0671c61faf0212a7f9e7c404ff562d64ac971401612917edc59615a4b1d38782"
+    },
+    {
+      "case_id": "FET001-DEV-003",
+      "family": "REJECTED_CONTEXT_INDEPENDENT_PATH",
+      "envelope": {
+        "envelope_schema": "0.1.0",
+        "trial_id": "FET-001",
+        "transport_interface": {
+          "id": "federated-context-envelope",
+          "version": "0.1"
+        },
+        "producer": {
+          "system_id": "agent-context-integrity",
+          "system_version": "0.2.2",
+          "source_interface": {
+            "id": "governed-repository-decision",
+            "version": "0.2"
+          }
+        },
+        "subject": {
+          "ref": "synthetic:orion-release",
+          "scope": [
+            "release:orion:1.0.0"
+          ]
+        },
+        "purpose": {
+          "id": "release-publish",
+          "description": "Evaluate context for publishing the synthetic release.",
+          "audience": [
+            "release-operator"
+          ]
+        },
+        "decision": "INDETERMINATE",
+        "trust": {
+          "state": "stale",
+          "issues": [
+            "Policy epoch is below the declared minimum."
+          ]
+        },
+        "policy_refs": [
+          {
+            "id": "policy:orion-release",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "id": "evidence:orion-tests",
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ],
+        "context_authority_refs": [
+          {
+            "id": "root:orion",
+            "kind": "trust-root",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          }
+        ],
+        "limitations": [
+          "The stale Context artifact cannot support publication."
+        ],
+        "disagreements": [],
+        "created_at": "2026-08-07T12:00:00Z",
+        "expires_at": "2026-08-07T13:00:00Z"
+      },
+      "envelope_sha256": "1309f83091e37106cf5a3c2c9fac6370e74f3473ee930a06f5f6aa61eec8efa6"
+    },
+    {
+      "case_id": "FET001-DEV-008",
+      "family": "HOLD_NO_AUTHORITY",
+      "envelope": {
+        "envelope_schema": "0.1.0",
+        "trial_id": "FET-001",
+        "transport_interface": {
+          "id": "federated-context-envelope",
+          "version": "0.1"
+        },
+        "producer": {
+          "system_id": "agent-context-integrity",
+          "system_version": "0.2.2",
+          "source_interface": {
+            "id": "governed-repository-decision",
+            "version": "0.2"
+          }
+        },
+        "subject": {
+          "ref": "synthetic:orion-release",
+          "scope": [
+            "release:orion:1.0.0"
+          ]
+        },
+        "purpose": {
+          "id": "release-publish",
+          "description": "Evaluate context for publishing the synthetic release.",
+          "audience": [
+            "release-operator"
+          ]
+        },
+        "decision": "HOLD",
+        "trust": {
+          "state": "verified",
+          "issues": [
+            "Required security review is missing."
+          ]
+        },
+        "policy_refs": [
+          {
+            "id": "policy:orion-release",
+            "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          }
+        ],
+        "evidence_refs": [
+          {
+            "id": "evidence:orion-tests",
+            "sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+          }
+        ],
+        "context_authority_refs": [
+          {
+            "id": "root:orion",
+            "kind": "trust-root",
+            "sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+          }
+        ],
+        "limitations": [
+          "Required governed evidence is missing."
+        ],
+        "disagreements": [],
+        "created_at": "2026-08-07T12:00:00Z",
+        "expires_at": "2026-08-07T13:00:00Z"
+      },
+      "envelope_sha256": "91429d55ad3f1b53bfe10be0f091a2aa00da9acda0ac510b6f0ac78b44a60f33"
+    }
+  ]
+}

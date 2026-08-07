@@ -41,6 +41,11 @@ The system provides `governed-repository-decision` v0.2 as a stable artifact: a
 deterministic decision with trust state, governed evidence paths, and content
 digests.
 
+For FET-001 it also provides `federated-context-envelope` v0.1 as an
+experimental, deterministic transport wrapper. The envelope declares its
+synthetic subject, purpose, audience, limitations, and expiry but carries no
+downstream permission or effect authority.
+
 The system currently consumes no federated runtime interface and has no runtime
 or evaluation dependency on another registered system.
 

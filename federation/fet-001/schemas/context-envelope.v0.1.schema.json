@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heronyogi/agent-governance-systems/blob/main/trials/FET-001/schemas/context-envelope.v0.1.schema.json",
+  "title": "FET-001 federated Context envelope v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "envelope_schema",
+    "trial_id",
+    "transport_interface",
+    "producer",
+    "subject",
+    "purpose",
+    "decision",
+    "trust",
+    "policy_refs",
+    "evidence_refs",
+    "context_authority_refs",
+    "limitations",
+    "disagreements",
+    "created_at",
+    "expires_at"
+  ],
+  "properties": {
+    "envelope_schema": {"const": "0.1.0"},
+    "trial_id": {"const": "FET-001"},
+    "transport_interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {"const": "federated-context-envelope"},
+        "version": {"const": "0.1"}
+      }
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system_id", "system_version", "source_interface"],
+      "properties": {
+        "system_id": {"const": "agent-context-integrity"},
+        "system_version": {"type": "string", "minLength": 1},
+        "source_interface": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "version"],
+          "properties": {
+            "id": {"const": "governed-repository-decision"},
+            "version": {"const": "0.2"}
+          }
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "scope"],
+      "properties": {
+        "ref": {"type": "string", "pattern": "^synthetic:[a-z0-9-]+$"},
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "purpose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "audience"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]+$"},
+        "description": {"type": "string", "minLength": 1},
+        "audience": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "decision": {"enum": ["READY", "HOLD", "INDETERMINATE"]},
+    "trust": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "issues"],
+      "properties": {
+        "state": {"enum": ["verified", "invalid", "stale", "ambiguous"]},
+        "issues": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "policy_refs": {"$ref": "#/$defs/digestRefs"},
+    "evidence_refs": {"$ref": "#/$defs/digestRefs"},
+    "context_authority_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "sha256"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["trust-root", "policy-owner", "evidence-owner"]},
+          "sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "disagreements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "created_at": {"$ref": "#/$defs/timestamp"},
+    "expires_at": {"$ref": "#/$defs/timestamp"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "digestRefs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "sha256"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "sha256": {"$ref": "#/$defs/sha256"}
+        }
+      }
+    }
+  }
+}
