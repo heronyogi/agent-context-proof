@@ -194,6 +194,19 @@ evals/                   fixtures and live matched-path comparison
 docs/                    protocol, prompts, diagrams, and compact results
 ```
 
+## Federated system contract
+
+This repository is the root of the `agent-context-integrity` system in the
+[Agent Governance Systems](https://github.com/heronyogi/agent-governance-systems)
+catalog. Its boundary, invariant, interfaces, non-claims, and independence are
+declared in [SYSTEM.md](SYSTEM.md), [CONTRACTS.md](CONTRACTS.md), and the
+machine-readable [system manifest](system.manifest.json).
+
+Federation membership does not create a runtime dependency or transfer
+authority between sibling systems. In particular, a governed repository
+decision does not grant permission for another system to retain, disclose,
+recommend, rank, or create an effect.
+
 ## Decision semantics
 
 - `READY`: contracts are internally consistent with the declared root and every
