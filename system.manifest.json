@@ -1,0 +1,74 @@
+{
+  "manifest_schema": "https://raw.githubusercontent.com/heronyogi/agent-governance-systems/main/schemas/system-manifest.v0.1.schema.json",
+  "contract_version": "0.1.0",
+  "system_id": "agent-context-integrity",
+  "name": "Agent Context Proof",
+  "repository_role": "system-root",
+  "repository": {
+    "url": "https://github.com/heronyogi/agent-context-proof",
+    "default_branch": "main",
+    "manifest_path": "system.manifest.json"
+  },
+  "lifecycle": {
+    "state": "draft",
+    "system_version": "0.3.0-draft",
+    "stable_version": "0.2.2"
+  },
+  "boundary": {
+    "governing_question": "What repository decision is supported by governed context inside a declared trust boundary?",
+    "primary_invariant": "The evaluator cannot return READY when governed contracts are untrusted, stale, ambiguous, or missing required evidence.",
+    "in_scope": [
+      "Integrity and consistency of synthetic governed context contracts",
+      "Policy-scoped repository evidence evaluation",
+      "Deterministic READY, HOLD, and INDETERMINATE decisions with evidence digests"
+    ],
+    "out_of_scope": [
+      "Real-world authenticity or legitimacy of the declared trust root",
+      "Permission to retain, disclose, rank, recommend, or create an external effect",
+      "Production repository security",
+      "General factual truth beyond the governed synthetic evidence"
+    ]
+  },
+  "interfaces": {
+    "provides": [
+      {
+        "id": "governed-repository-decision",
+        "version": "0.2",
+        "stability": "stable",
+        "description": "A deterministic repository decision with trust state, governed evidence paths, and content digests."
+      }
+    ],
+    "consumes": []
+  },
+  "relationships": [
+    {
+      "system_id": "agent-authority-integrity",
+      "kind": "sibling",
+      "required": false
+    }
+  ],
+  "dependencies": {
+    "runtime_systems": [],
+    "evaluation_systems": []
+  },
+  "claim_boundary": {
+    "claims": [
+      "The approved deterministic evaluator can make bounded synthetic repository decisions from governed contracts and evidence."
+    ],
+    "does_not_claim": [
+      "That a declared trust root is legitimate in the real world",
+      "That a supported repository decision grants permission for another action",
+      "That the v0.3 draft has an evaluator or experimental result",
+      "That this system transfers authority to another system"
+    ]
+  },
+  "ip_boundary": {
+    "public_basis": "Observable contract integrity, declared authority coordinates, policy requirements, evidence paths, and deterministic decisions.",
+    "excluded": [
+      "Private ontology primitives or mappings",
+      "Symbolic registries, signatures, or morphologies",
+      "Private derivation and composition rules",
+      "Private correspondence, identities, and sealed cases"
+    ]
+  }
+}
