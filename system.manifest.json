@@ -36,6 +36,12 @@
         "version": "0.2",
         "stability": "stable",
         "description": "A deterministic repository decision with trust state, governed evidence paths, and content digests."
+      },
+      {
+        "id": "federated-context-envelope",
+        "version": "0.1",
+        "stability": "experimental",
+        "description": "A purpose-bounded, expiring transport wrapper for a governed repository decision that carries no downstream action permission."
       }
     ],
     "consumes": []

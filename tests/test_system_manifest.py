@@ -17,3 +17,20 @@ def test_system_manifest_preserves_independence_and_claim_boundary() -> None:
     assert manifest["interfaces"]["consumes"] == []
     assert manifest["claim_boundary"]["does_not_claim"]
     assert manifest["ip_boundary"]["excluded"]
+
+
+def test_system_manifest_declares_fet001_producer_without_new_dependency() -> None:
+    manifest = json.loads((ROOT / "system.manifest.json").read_text(encoding="utf-8"))
+    provided = {
+        (item["id"], item["version"]): item
+        for item in manifest["interfaces"]["provides"]
+    }
+
+    assert provided[("federated-context-envelope", "0.1")]["stability"] == (
+        "experimental"
+    )
+    assert manifest["interfaces"]["consumes"] == []
+    assert manifest["dependencies"] == {
+        "runtime_systems": [],
+        "evaluation_systems": [],
+    }

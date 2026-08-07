@@ -192,6 +192,7 @@ src/contextproof/        deterministic evaluator and one-tool agent
 tests/                   offline invariants and synthetic test-only fixtures
 evals/                   fixtures and live matched-path comparison
 docs/                    protocol, prompts, diagrams, and compact results
+federation/fet-001/       offline producer contract and public envelope fixtures
 ```
 
 ## Federated system contract
@@ -206,6 +207,11 @@ Federation membership does not create a runtime dependency or transfer
 authority between sibling systems. In particular, a governed repository
 decision does not grant permission for another system to retain, disclose,
 recommend, rank, or create an effect.
+
+The [FET-001 producer implementation](federation/fet-001/README.md) provides an
+experimental, purpose-bounded `federated-context-envelope` v0.1 wrapper around
+the stable decision interface. It is deterministic and offline, carries an
+explicit expiry, and contains no downstream permission or effect authority.
 
 ## Decision semantics
 

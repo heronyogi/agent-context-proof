@@ -15,6 +15,18 @@ The artifact reports a bounded repository decision. It does not grant
 permission to another system or establish that the declared authority is
 legitimate outside the experiment.
 
+## FET-001 transport
+
+`federated-context-envelope` v0.1 is an experimental, deterministic wrapper
+around the stable decision artifact. Its canonical schema is content-addressed
+in [federation/fet-001](federation/fet-001/README.md). The producer derives
+Context fields from the source result and requires the caller to declare the
+synthetic subject, purpose, audience, and validity interval.
+
+The transport has no permission, consent, effect, recommendation, ranking,
+retention, or disclosure authorization field. It does not create a runtime or
+evaluation dependency on the Authority system.
+
 ## Future authority consumer
 
 A future authority-integrity adapter may accept this system's artifact. The
