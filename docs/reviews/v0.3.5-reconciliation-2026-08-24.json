@@ -1,0 +1,65 @@
+{
+  "schema": "agent-context-proof.review-reconciliation/v0.1",
+  "recorded_at": "2026-08-24T22:50:53Z",
+  "subject": {
+    "commit": "f29adba84d5711eecbd6be3f9871cbc8c08127d3",
+    "tree": "bd23654cd5702b5792bf77745a7692037d9a2537"
+  },
+  "prior_public_decision": {
+    "outcome": "APPROVE_FOR_CASE_SEALING",
+    "comment_url": "https://github.com/heronyogi/agent-context-proof/pull/2#issuecomment-5181725385",
+    "annotated_tag": "v0.3.5-protocol-approved-for-case-sealing",
+    "preserved_as_historical_exact_subject_record": true,
+    "revoked_by_this_record": false
+  },
+  "later_independent_review": {
+    "outcome": "REQUEST_CHANGES",
+    "reviewer_type": "ordinary_ai_collaborator_not_authenticated_persona",
+    "review_result_sha256": "sha256:d27f87d423bbbd91d8ebbabef5f3e687f7b4ee049c18325bcee323816e7b1c82",
+    "blocking_finding_ids": [
+      "ACP-V03-001",
+      "ACP-V03-002",
+      "ACP-V03-003",
+      "ACP-V03-004",
+      "ACP-V03-005",
+      "ACP-V03-006"
+    ],
+    "scope": "protocol_reproducibility_and_case_sealing_only"
+  },
+  "owner_reconciliation": {
+    "disposition": "ACCEPT_FINDINGS_AND_PREPARE_SUCCESSOR",
+    "case_sealing_state": "HELD_PENDING_SUCCESSOR_REVIEW",
+    "implementation_state": "CLOSED",
+    "blind_case_exposure_state": "PROHIBITED",
+    "reason": "The later exact-object review found six ambiguities that could make independent implementations, provenance records, or pre-reveal structural decisions diverge.",
+    "record_preservation": "Both exact-subject records remain visible; this reconciliation does not rewrite either review outcome.",
+    "successor_rule": "Any semantic correction creates a new commit whose review and decision must be separately bound to that exact successor SHA."
+  },
+  "accepted_corrections": [
+    {
+      "finding_id": "ACP-V03-001",
+      "required_result": "Bind each declared signer issuer, lineage, epoch, and key tuple to the uniquely resolved authority-introduction identity."
+    },
+    {
+      "finding_id": "ACP-V03-002",
+      "required_result": "Define one total event order for external-anchor activation, earlier-issued transition effects, same-timestamp authorization, and immediate effects."
+    },
+    {
+      "finding_id": "ACP-V03-003",
+      "required_result": "Enforce component-wise grant-scope containment and reject wildcard expansion."
+    },
+    {
+      "finding_id": "ACP-V03-004",
+      "required_result": "Require exactly one lineage-head pin per lineage ID and reject keyed duplicates."
+    },
+    {
+      "finding_id": "ACP-V03-005",
+      "required_result": "Represent decisive precedence, recovery, revocation, identity, and head-pin dependencies canonically with their authorization records."
+    },
+    {
+      "finding_id": "ACP-V03-006",
+      "required_result": "Commit strict schemas and a closed standalone structural validator for every case-sealing artifact."
+    }
+  ],
+  "authority_effect": "This record holds the local project stage pending successor review; it is not implementation approval, experimental validation, production authority, or a real-world security claim."
+}

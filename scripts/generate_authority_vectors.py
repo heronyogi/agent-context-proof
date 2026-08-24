@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "tests" / "fixtures" / "authority-ledger.v0.3.vectors.json"
 SCHEMA_VERSION = "agent-context-proof-authority-entry-v0.3.1"
-VECTOR_VERSION = "agent-context-proof-authority-vectors-v0.3.1"
+VECTOR_VERSION = "agent-context-proof-authority-vectors-v0.3.2"
 SCOPE = {
     "action": "release",
     "artifact": "release:orion:1.0.0",
@@ -305,7 +305,7 @@ def build_vectors() -> dict[str, Any]:
                     "scope": deepcopy(SCOPE),
                 }
             ],
-            "schema_version": "agent-context-proof-authority-bundle-v0.3.1",
+            "schema_version": "agent-context-proof-authority-bundle-v0.3.2",
             "trust_anchors": [
                 {
                     "anchor_id": "anchor:root-a-epoch-0",

@@ -1,0 +1,32 @@
+name: Protocol ambiguity
+description: Identify a rule that permits divergent independent implementations or labels.
+title: "[Protocol]: "
+body:
+  - type: input
+    id: revision
+    attributes:
+      label: Exact protocol revision
+      description: Commit SHA and artifact path.
+    validations:
+      required: true
+  - type: textarea
+    id: ambiguity
+    attributes:
+      label: Ambiguous rule
+      description: Quote only the minimum necessary public text and explain the competing readings.
+    validations:
+      required: true
+  - type: textarea
+    id: counterexample
+    attributes:
+      label: Reproducible counterexample
+      description: Provide synthetic bytes or a bounded case that distinguishes the readings.
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Requested correction
+      description: State the missing invariant, ordering rule, schema constraint, or classification.
+    validations:
+      required: true

@@ -225,7 +225,7 @@
         }
       }
     ],
-    "schema_version": "agent-context-proof-authority-bundle-v0.3.1",
+    "schema_version": "agent-context-proof-authority-bundle-v0.3.2",
     "trust_anchors": [
       {
         "anchor_id": "anchor:root-a-epoch-0",
@@ -301,7 +301,7 @@
     "note": "Private seeds are public, synthetic test material and MUST NOT be used outside conformance tests.",
     "signature_encoding": "base64url_no_padding"
   },
-  "schema_version": "agent-context-proof-authority-vectors-v0.3.1",
+  "schema_version": "agent-context-proof-authority-vectors-v0.3.2",
   "vectors": [
     {
       "canonical_payload": "{\"entry_id\":\"entry:delegation-release-council\",\"entry_type\":\"delegation\",\"issued_at\":\"2030-01-01T00:00:00Z\",\"issuer_epoch\":0,\"issuer_id\":\"authority:root-a\",\"issuer_key_id\":\"sha256:56475aa75463474c0285df5dbf2bcab73da651358839e9b77481b2eab107708c\",\"lineage_id\":\"lineage:root-a\",\"not_after\":\"2031-01-01T00:00:00Z\",\"not_before\":\"2030-01-01T00:00:00Z\",\"permissions\":[\"claim\"],\"schema_version\":\"agent-context-proof-authority-entry-v0.3.1\",\"scope\":{\"action\":\"release\",\"artifact\":\"release:orion:1.0.0\",\"organization\":\"org:orion\",\"repository\":\"repo:orion-service\"},\"subject_epoch\":0,\"subject_issuer_id\":\"authority:release-council\",\"subject_key_id\":\"sha256:68894d58f18f2c34d49eb2f4b110e042cd0f3150a4dc39243d7f63bd598c0783\",\"subject_lineage_id\":\"lineage:release-council\",\"subject_public_key_base64url\":\"F0VTtFbd38aQjsqxwQH-arIeK6oGF3lbfUOmNIKZP9U\"}",

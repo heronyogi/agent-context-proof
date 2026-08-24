@@ -34,8 +34,8 @@ repository. Every family includes a signed `authorship.json` record with:
 The exact required keys are `family_id`, `primary_author_id`, `coauthor_ids`,
 `implementation_roles`, `shared_source_digests`, `coordination_disclosures`,
 `conflicts_of_interest`, `attestation_timestamp`, and
-`attestation_signature`. Additional keys are allowed, but none of these keys may
-be omitted or null.
+`attestation_signature`, together with the schema-version discriminator. No key
+may be omitted or null, and unknown keys are rejected by the committed schema.
 
 The protocol reviewer builds an undirected relatedness graph before case-pack
 commitment. Families are connected when they share a primary or coauthor,
@@ -60,7 +60,8 @@ Each artifact has a separate SHA-256 manifest.
 
 Before implementation freeze, implementers may see only:
 
-- schema versions and aggregate case and family counts;
+- the public-commitment schema version, approved protocol commit, all governed
+  artifact schema versions, and aggregate case and family counts;
 - the sealed input-pack and oracle-pack SHA-256 digests;
 - the authorship-attestation digest; and
 - the blinded leakage-review attestation digest.
@@ -99,13 +100,38 @@ Withheld until every evaluated path's output digest is committed:
 The oracle pack's digest is published before implementation freeze. The archive
 is released only for scoring the already committed outputs.
 
+## Normative artifact schemas and closed validation
+
+The following strict Draft 2020-12 schemas govern every record needed to seal,
+freeze, reveal, and score a v0.3 experiment:
+
+- [`case-record.v0.3.schema.json`](case-record.v0.3.schema.json)
+- [`oracle-record.v0.3.schema.json`](oracle-record.v0.3.schema.json)
+- [`result-record.v0.3.schema.json`](result-record.v0.3.schema.json)
+- [`authorship-attestation.v0.3.schema.json`](authorship-attestation.v0.3.schema.json)
+- [`leakage-review-attestation.v0.3.schema.json`](leakage-review-attestation.v0.3.schema.json)
+- [`public-commitment.v0.3.schema.json`](public-commitment.v0.3.schema.json)
+- [`sealed-pack-manifest.v0.3.schema.json`](sealed-pack-manifest.v0.3.schema.json)
+- [`freeze-reveal-record.v0.3.schema.json`](freeze-reveal-record.v0.3.schema.json)
+
+All schemas reject unknown properties, null in required fields, duplicate JSON
+members, out-of-vocabulary enum values, unsafe integers, malformed digests, and
+non-canonical path shapes. The normative structural algorithm is
+[`validate_v03_artifact.py`](../scripts/validate_v03_artifact.py). It performs
+strict I-JSON parsing before schema validation and then applies the semantic
+checks JSON Schema cannot express: keyed uniqueness of case IDs, authorship
+family IDs, manifest paths, and lineage-head IDs; exact input/oracle case-set equality;
+Unicode-code-point array order; aggregate-count equality; and relative POSIX
+path safety. A pack is structurally valid only when that algorithm returns
+success. Model judgment or a model-authored validity report is not a substitute.
+
 ## Required case record
 
 Each record in the sealed input pack contains:
 
 ```json
 {
-  "schema_version": "agent-context-proof-case-v0.3.0",
+  "schema_version": "agent-context-proof-case-v0.3.6",
   "case_id": "blind_example_001",
   "family_id": "authority_rotation",
   "split": "blind_validation",
@@ -120,6 +146,7 @@ The matching sealed record adds:
 
 ```json
 {
+  "schema_version": "agent-context-proof-oracle-v0.3.6",
   "case_id": "blind_example_001",
   "oracle": {
     "disposition": "AUTHORITY_CONFLICT",
@@ -163,6 +190,32 @@ The matching sealed record adds:
           ]
         }
       ],
+      "authority_dependencies": [
+        {
+          "dependency_type": "identity_introduction",
+          "record_id": "anchor:release-east",
+          "payload_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "authorization_records": [
+            {
+              "record_id": "anchor:release-east",
+              "payload_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            }
+          ],
+          "decisive_for": ["entry:claim-owner-east"]
+        },
+        {
+          "dependency_type": "identity_introduction",
+          "record_id": "anchor:release-west",
+          "payload_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+          "authorization_records": [
+            {
+              "record_id": "anchor:release-west",
+              "payload_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+            }
+          ],
+          "decisive_for": ["entry:claim-owner-west"]
+        }
+      ],
       "contract_records": [],
       "evidence_records": [],
       "unevaluated_stages": ["contract", "evidence"]
@@ -177,8 +230,11 @@ Contract and evidence provenance are empty because `AUTHORITY_CONFLICT`
 terminates evaluation before those stages, not because conflict lacks decisive
 provenance. Every undominated conflicting authority claim has its own chain.
 Authority chains are sorted by `(issuer_id, claim_entry_id)` using Unicode code
-point order. Contract and evidence records are sorted by `(path, sha256)`;
-records inside one authority chain retain anchor-to-claim semantic order.
+point order. Authority dependencies are sorted by `(dependency_type, record_id,
+payload_sha256)`; their authorization records retain anchor-to-dependency
+semantic order and `decisive_for` is Unicode-code-point sorted. Contract and
+evidence records are sorted by `(path, sha256)`; records inside one authority
+chain retain anchor-to-claim semantic order.
 
 ## Oracle labeling and disagreement
 

@@ -10,6 +10,9 @@ PROTOCOL_JSON = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.json"
 PROTOCOL_MD = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.md"
 AUTHORING_MD = PROJECT_ROOT / "docs" / "case-authoring.v0.3.md"
 REVIEW_GUIDE = PROJECT_ROOT / "docs" / "v0.3-review-guide.md"
+RECONCILIATION = (
+    PROJECT_ROOT / "docs" / "reviews" / "v0.3.5-reconciliation-2026-08-24.json"
+)
 CI_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
 LIVE_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "live-eval.yml"
 
@@ -61,10 +64,37 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.5"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.6"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"
+
+
+def test_v035_conflicting_review_records_are_preserved_and_reconciled() -> None:
+    record = json.loads(RECONCILIATION.read_text(encoding="utf-8"))
+    assert record["subject"]["commit"] == (
+        "f29adba84d5711eecbd6be3f9871cbc8c08127d3"
+    )
+    assert record["prior_public_decision"] == {
+        "outcome": "APPROVE_FOR_CASE_SEALING",
+        "comment_url": (
+            "https://github.com/heronyogi/agent-context-proof/pull/2"
+            "#issuecomment-5181725385"
+        ),
+        "annotated_tag": "v0.3.5-protocol-approved-for-case-sealing",
+        "preserved_as_historical_exact_subject_record": True,
+        "revoked_by_this_record": False,
+    }
+    later = record["later_independent_review"]
+    assert later["outcome"] == "REQUEST_CHANGES"
+    assert later["blocking_finding_ids"] == [
+        f"ACP-V03-00{index}" for index in range(1, 7)
+    ]
+    reconciliation = record["owner_reconciliation"]
+    assert reconciliation["disposition"] == "ACCEPT_FINDINGS_AND_PREPARE_SUCCESSOR"
+    assert reconciliation["case_sealing_state"] == "HELD_PENDING_SUCCESSOR_REVIEW"
+    assert reconciliation["implementation_state"] == "CLOSED"
+    assert reconciliation["blind_case_exposure_state"] == "PROHIBITED"
 
 
 def test_valid_output_table_exactly_mirrors_the_machine_contract() -> None:
@@ -347,7 +377,15 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain(
         "authority_chains": (
             "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id)"
         ),
+        "authority_dependencies": (
+            "ascending_unicode_code_point_tuple(dependency_type,record_id,"
+            "payload_sha256)"
+        ),
+        "authorization_records_within_dependency": (
+            "semantic_chain_order_from_authorizing_anchor_to_dependency_record"
+        ),
         "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
+        "decisive_for_within_dependency": "ascending_unicode_code_point",
         "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
         "records_within_authority_chain": (
             "semantic_chain_order_from_anchor_or_delegation_to_claim"
@@ -397,6 +435,25 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain(
                 provenance_contract["authority_record_required_fields"]
             )
             assert digest_pattern.fullmatch(record["payload_sha256"])
+
+    dependencies = provenance["authority_dependencies"]
+    assert dependencies == sorted(
+        dependencies,
+        key=lambda item: (
+            item["dependency_type"],
+            item["record_id"],
+            item["payload_sha256"],
+        ),
+    )
+    for dependency in dependencies:
+        assert set(dependency) == set(
+            provenance_contract["authority_dependency_required_fields"]
+        )
+        assert dependency["dependency_type"] in provenance_contract[
+            "authority_dependency_types"
+        ]
+        assert dependency["decisive_for"] == sorted(dependency["decisive_for"])
+        assert dependency["authorization_records"]
 
 
 def test_scoring_population_exactly_mirrors_and_constrains_pass_rules() -> None:

@@ -1,0 +1,35 @@
+name: Reproducible bug
+description: Report deterministic behavior that differs from the documented contract.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private data, sealed cases, or production artifacts.
+  - type: input
+    id: revision
+    attributes:
+      label: Exact revision
+      description: Commit SHA or release tag where the behavior occurs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Cite the governing rule, schema, or documented invariant.
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: Include a minimal synthetic reproduction and exact command output.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Checks run
+      description: List Python version, platform, and validation commands.
+    validations:
+      required: true

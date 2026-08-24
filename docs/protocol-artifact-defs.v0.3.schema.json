@@ -1,0 +1,583 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/heronyogi/agent-context-proof/docs/protocol-artifact-defs.v0.3.schema.json",
+  "title": "Agent Context Proof v0.3.6 artifact definitions",
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "maxLength": 200
+    },
+    "git_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"
+    },
+    "relative_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)[^\\\\\\u0000]+$"
+    },
+    "disposition": {
+      "enum": [
+        "READY",
+        "HOLD",
+        "INDETERMINATE",
+        "AUTHORITY_CONFLICT"
+      ]
+    },
+    "mechanism_status": {
+      "enum": [
+        "CONFORMANT",
+        "NONCONFORMANT",
+        "INDETERMINATE"
+      ]
+    },
+    "authority_status": {
+      "enum": [
+        "VALID",
+        "INVALID",
+        "CONFLICT",
+        "INDETERMINATE"
+      ]
+    },
+    "reason_code": {
+      "enum": [
+        "ALL_REQUIREMENTS_SATISFIED",
+        "AUTHORITY_INDETERMINATE",
+        "AUTHORITY_INVALID",
+        "AUTHORITY_VALID",
+        "DUPLICATE_LINEAGE_HEAD",
+        "EVIDENCE_CONTRADICTION",
+        "EVIDENCE_UNREADABLE",
+        "IDENTITY_BINDING_MISMATCH",
+        "INVENTORY_INCOMPLETE",
+        "MECHANISM_INDETERMINATE",
+        "MECHANISM_NONCONFORMANT",
+        "POLICY_UNSATISFIED",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REQUIRED_EVIDENCE_ABSENT",
+        "REVOCATION_EFFECTIVE",
+        "ROLLBACK_DETECTED",
+        "SCOPE_ESCALATION",
+        "SEMANTICALLY_UNJUDGEABLE",
+        "TRUST_OR_TIME_UNSATISFIED",
+        "VALID_ISSUER_CONFLICT"
+      ]
+    },
+    "oracle_rule_id": {
+      "enum": [
+        "OA1_VALID",
+        "OA2_CONFLICT",
+        "OA3_INVALID",
+        "OA4_UNKNOWN",
+        "OE1_REQUIRED_ABSENT",
+        "OE2_POLICY_FALSE",
+        "OE3_TRUST_OR_TIME_FALSE",
+        "OE4_UNREADABLE",
+        "OE5_UNRESOLVED_CONTRADICTION",
+        "OE6_SEMANTICALLY_UNJUDGEABLE",
+        "OE7_INVENTORY_UNKNOWN",
+        "OE8_ALL_SATISFIED",
+        "V1_READY",
+        "V2_HOLD",
+        "V3_EVIDENCE_UNKNOWN",
+        "V4_AUTHORITY_CONFLICT",
+        "V5_AUTHORITY_INVALID",
+        "V6_AUTHORITY_UNKNOWN",
+        "V7_MECHANISM_NONCONFORMANT",
+        "V8_MECHANISM_UNKNOWN"
+      ]
+    },
+    "valid_output_triplet": {
+      "oneOf": [
+        {"properties": {"disposition": {"const": "READY"}, "mechanism_status": {"const": "CONFORMANT"}, "authority_status": {"const": "VALID"}}, "required": ["disposition", "mechanism_status", "authority_status"]},
+        {"properties": {"disposition": {"const": "HOLD"}, "mechanism_status": {"const": "CONFORMANT"}, "authority_status": {"const": "VALID"}}, "required": ["disposition", "mechanism_status", "authority_status"]},
+        {"properties": {"disposition": {"const": "INDETERMINATE"}, "mechanism_status": {"const": "CONFORMANT"}, "authority_status": {"const": "VALID"}}, "required": ["disposition", "mechanism_status", "authority_status"]},
+        {"properties": {"disposition": {"const": "INDETERMINATE"}, "mechanism_status": {"const": "CONFORMANT"}, "authority_status": {"const": "INVALID"}}, "required": ["disposition", "mechanism_status", "authority_status"]},
+        {"properties": {"disposition": {"const": "INDETERMINATE"}, "mechanism_status": {"const": "CONFORMANT"}, "authority_status": {"const": "INDETERMINATE"}}, "required": ["disposition", "mechanism_status", "authority_status"]},
+        {"properties": {"disposition": {"const": "AUTHORITY_CONFLICT"}, "mechanism_status": {"const": "CONFORMANT"}, "authority_status": {"const": "CONFLICT"}}, "required": ["disposition", "mechanism_status", "authority_status"]},
+        {"properties": {"disposition": {"const": "INDETERMINATE"}, "mechanism_status": {"const": "NONCONFORMANT"}, "authority_status": {"const": "INDETERMINATE"}}, "required": ["disposition", "mechanism_status", "authority_status"]},
+        {"properties": {"disposition": {"const": "INDETERMINATE"}, "mechanism_status": {"const": "INDETERMINATE"}, "authority_status": {"const": "INDETERMINATE"}}, "required": ["disposition", "mechanism_status", "authority_status"]}
+      ]
+    },
+    "authority_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "record_id": {"$ref": "#/$defs/safe_id"},
+        "payload_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "required": ["record_id", "payload_sha256"]
+    },
+    "authority_chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "issuer_id": {"$ref": "#/$defs/safe_id"},
+        "claim_entry_id": {"$ref": "#/$defs/safe_id"},
+        "records": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/authority_record"}
+        }
+      },
+      "required": ["issuer_id", "claim_entry_id", "records"]
+    },
+    "authority_dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dependency_type": {
+          "enum": [
+            "identity_introduction",
+            "lineage_head",
+            "precedence",
+            "recovery",
+            "revocation"
+          ]
+        },
+        "record_id": {"$ref": "#/$defs/safe_id"},
+        "payload_sha256": {"$ref": "#/$defs/digest"},
+        "authorization_records": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/authority_record"}
+        },
+        "decisive_for": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/safe_id"}
+        }
+      },
+      "required": [
+        "dependency_type",
+        "record_id",
+        "payload_sha256",
+        "authorization_records",
+        "decisive_for"
+      ]
+    },
+    "file_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {"$ref": "#/$defs/relative_path"},
+        "sha256": {"$ref": "#/$defs/digest"}
+      },
+      "required": ["path", "sha256"]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "authority_bundle_path": {"$ref": "#/$defs/relative_path"},
+        "authority_bundle_sha256": {"$ref": "#/$defs/digest"},
+        "authority_chains": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/authority_chain"}
+        },
+        "authority_dependencies": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/authority_dependency"}
+        },
+        "contract_records": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/file_record"}
+        },
+        "evidence_records": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/file_record"}
+        },
+        "unevaluated_stages": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["authority", "contract", "evidence"]}
+        }
+      },
+      "required": [
+        "authority_bundle_path",
+        "authority_bundle_sha256",
+        "authority_chains",
+        "authority_dependencies",
+        "contract_records",
+        "evidence_records",
+        "unevaluated_stages"
+      ]
+    },
+    "case_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "agent-context-proof-case-v0.3.6"},
+        "case_id": {"$ref": "#/$defs/safe_id"},
+        "family_id": {"$ref": "#/$defs/safe_id"},
+        "split": {"enum": ["blind_validation", "development"]},
+        "question": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "validation_time": {"$ref": "#/$defs/timestamp"},
+        "fixture_directory": {"$ref": "#/$defs/relative_path"},
+        "permitted_inputs_manifest": {"$ref": "#/$defs/relative_path"}
+      },
+      "required": [
+        "schema_version",
+        "case_id",
+        "family_id",
+        "split",
+        "question",
+        "validation_time",
+        "fixture_directory",
+        "permitted_inputs_manifest"
+      ]
+    },
+    "oracle_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {"$ref": "#/$defs/valid_output_triplet"},
+        {
+          "if": {"properties": {"disposition": {"const": "AUTHORITY_CONFLICT"}}, "required": ["disposition"]},
+          "then": {"properties": {"provenance": {"properties": {"authority_chains": {"minItems": 2}}}}}
+        }
+      ],
+      "properties": {
+        "disposition": {"$ref": "#/$defs/disposition"},
+        "mechanism_status": {"$ref": "#/$defs/mechanism_status"},
+        "authority_status": {"$ref": "#/$defs/authority_status"},
+        "oracle_rule_ids": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/oracle_rule_id"}
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/reason_code"}
+        },
+        "provenance": {"$ref": "#/$defs/provenance"}
+      },
+      "required": [
+        "disposition",
+        "mechanism_status",
+        "authority_status",
+        "oracle_rule_ids",
+        "reason_codes",
+        "provenance"
+      ]
+    },
+    "oracle_annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "annotator_id": {"$ref": "#/$defs/safe_id"},
+        "annotation_sha256": {"$ref": "#/$defs/digest"},
+        "attestation_signature": {"type": "string", "minLength": 1}
+      },
+      "required": ["annotator_id", "annotation_sha256", "attestation_signature"]
+    },
+    "oracle_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "agent-context-proof-oracle-v0.3.6"},
+        "case_id": {"$ref": "#/$defs/safe_id"},
+        "oracle": {"$ref": "#/$defs/oracle_payload"},
+        "rationale": {"type": "string", "minLength": 1, "maxLength": 4000},
+        "annotations": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/oracle_annotation"}
+        },
+        "adjudication_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "required": ["schema_version", "case_id", "oracle", "rationale"]
+    },
+    "result_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "allOf": [
+        {"$ref": "#/$defs/valid_output_triplet"},
+        {
+          "if": {"properties": {"disposition": {"const": "AUTHORITY_CONFLICT"}}, "required": ["disposition"]},
+          "then": {"properties": {"provenance": {"properties": {"authority_chains": {"minItems": 2}}}}}
+        }
+      ],
+      "properties": {
+        "schema_version": {"const": "agent-context-proof-result-v0.3.6"},
+        "case_id": {"$ref": "#/$defs/safe_id"},
+        "path_id": {"$ref": "#/$defs/safe_id"},
+        "repeat_index": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "disposition": {"$ref": "#/$defs/disposition"},
+        "mechanism_status": {"$ref": "#/$defs/mechanism_status"},
+        "authority_status": {"$ref": "#/$defs/authority_status"},
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/reason_code"}
+        },
+        "provenance": {"$ref": "#/$defs/provenance"},
+        "trace_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "required": [
+        "schema_version",
+        "case_id",
+        "path_id",
+        "repeat_index",
+        "disposition",
+        "mechanism_status",
+        "authority_status",
+        "reason_codes",
+        "provenance",
+        "trace_sha256"
+      ]
+    },
+    "authorship_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "agent-context-proof-authorship-v0.3.6"},
+        "family_id": {"$ref": "#/$defs/safe_id"},
+        "primary_author_id": {"$ref": "#/$defs/safe_id"},
+        "coauthor_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/safe_id"}},
+        "implementation_roles": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "shared_source_digests": {"type": "array", "items": {"$ref": "#/$defs/file_record"}},
+        "coordination_disclosures": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "conflicts_of_interest": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "attestation_timestamp": {"$ref": "#/$defs/timestamp"},
+        "attestation_signature": {"type": "string", "minLength": 1}
+      },
+      "required": [
+        "schema_version",
+        "family_id",
+        "primary_author_id",
+        "coauthor_ids",
+        "implementation_roles",
+        "shared_source_digests",
+        "coordination_disclosures",
+        "conflicts_of_interest",
+        "attestation_timestamp",
+        "attestation_signature"
+      ]
+    },
+    "leakage_case_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "randomized_case_id": {"$ref": "#/$defs/safe_id"},
+        "predicted_disposition": {"$ref": "#/$defs/disposition"},
+        "predicted_mechanism_status": {"$ref": "#/$defs/mechanism_status"},
+        "predicted_authority_status": {"$ref": "#/$defs/authority_status"},
+        "suspected_cues": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "basis": {"enum": ["GOVERNED_SEMANTICS", "EXTRANEOUS_FEATURE", "NONE"]},
+        "disposition": {"enum": ["PASS", "REVISE", "REJECT"]},
+        "rationale": {"type": "string", "minLength": 1}
+      },
+      "required": [
+        "randomized_case_id",
+        "predicted_disposition",
+        "predicted_mechanism_status",
+        "predicted_authority_status",
+        "suspected_cues",
+        "basis",
+        "disposition",
+        "rationale"
+      ]
+    },
+    "leakage_review_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "agent-context-proof-leakage-review-v0.3.6"},
+        "input_pack_sha256": {"$ref": "#/$defs/digest"},
+        "randomized_input_pack_sha256": {"$ref": "#/$defs/digest"},
+        "reviewer_id": {"$ref": "#/$defs/safe_id"},
+        "oracle_custodian_id": {"$ref": "#/$defs/safe_id"},
+        "cases": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/leakage_case_review"}},
+        "attestation_timestamp": {"$ref": "#/$defs/timestamp"},
+        "reviewer_signature": {"type": "string", "minLength": 1},
+        "custodian_signature": {"type": "string", "minLength": 1}
+      },
+      "required": [
+        "schema_version",
+        "input_pack_sha256",
+        "randomized_input_pack_sha256",
+        "reviewer_id",
+        "oracle_custodian_id",
+        "cases",
+        "attestation_timestamp",
+        "reviewer_signature",
+        "custodian_signature"
+      ]
+    },
+    "schema_versions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "authorship_attestation": {"const": "agent-context-proof-authorship-v0.3.6"},
+        "case_record": {"const": "agent-context-proof-case-v0.3.6"},
+        "freeze_reveal_record": {"const": "agent-context-proof-freeze-reveal-v0.3.6"},
+        "leakage_review_attestation": {"const": "agent-context-proof-leakage-review-v0.3.6"},
+        "oracle_record": {"const": "agent-context-proof-oracle-v0.3.6"},
+        "pack_manifest": {"const": "agent-context-proof-pack-manifest-v0.3.6"},
+        "public_commitment": {"const": "agent-context-proof-public-commitment-v0.3.6"},
+        "result_record": {"const": "agent-context-proof-result-v0.3.6"}
+      },
+      "required": [
+        "authorship_attestation",
+        "case_record",
+        "freeze_reveal_record",
+        "leakage_review_attestation",
+        "oracle_record",
+        "pack_manifest",
+        "public_commitment",
+        "result_record"
+      ]
+    },
+    "public_commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "agent-context-proof-public-commitment-v0.3.6"},
+        "approved_protocol_commit": {"$ref": "#/$defs/git_commit"},
+        "schema_versions": {"$ref": "#/$defs/schema_versions"},
+        "aggregate_case_count": {"type": "integer", "minimum": 12, "maximum": 9007199254740991},
+        "aggregate_family_count": {"type": "integer", "minimum": 4, "maximum": 9007199254740991},
+        "sealed_input_pack_sha256": {"$ref": "#/$defs/digest"},
+        "sealed_oracle_pack_sha256": {"$ref": "#/$defs/digest"},
+        "authorship_attestation_sha256": {"$ref": "#/$defs/digest"},
+        "leakage_review_attestation_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "required": [
+        "schema_version",
+        "approved_protocol_commit",
+        "schema_versions",
+        "aggregate_case_count",
+        "aggregate_family_count",
+        "sealed_input_pack_sha256",
+        "sealed_oracle_pack_sha256",
+        "authorship_attestation_sha256",
+        "leakage_review_attestation_sha256"
+      ]
+    },
+    "pack_manifest_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {"$ref": "#/$defs/relative_path"},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "size_bytes": {"type": "integer", "minimum": 0, "maximum": 9007199254740991}
+      },
+      "required": ["path", "sha256", "size_bytes"]
+    },
+    "pack_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "agent-context-proof-pack-manifest-v0.3.6"},
+        "pack_type": {"enum": ["sealed_input_pack", "sealed_oracle_pack"]},
+        "archive_sha256": {"$ref": "#/$defs/digest"},
+        "case_count": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "family_count": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+        "entries": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pack_manifest_entry"}}
+      },
+      "required": ["schema_version", "pack_type", "archive_sha256", "case_count", "family_count", "entries"]
+    },
+    "path_commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path_id": {"$ref": "#/$defs/safe_id"},
+        "outputs_sha256": {"$ref": "#/$defs/digest"},
+        "traces_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "required": ["path_id", "outputs_sha256", "traces_sha256"]
+    },
+    "model_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path_id": {"$ref": "#/$defs/safe_id"},
+        "model_id": {"type": "string", "minLength": 1},
+        "settings_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "required": ["path_id", "model_id", "settings_sha256"]
+    },
+    "case_exclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {"$ref": "#/$defs/safe_id"},
+        "reason_code": {"enum": ["SCHEMA_INVALID", "DUPLICATE_ID", "UNSAFE_PATH", "UNSAFE_FILE_TYPE", "INPUT_INCOMPLETE", "FIXTURE_COPY_FAILED"]},
+        "recorded_at": {"$ref": "#/$defs/timestamp"}
+      },
+      "required": ["case_id", "reason_code", "recorded_at"]
+    },
+    "freeze_reveal_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "agent-context-proof-freeze-reveal-v0.3.6"},
+        "experiment_id": {"$ref": "#/$defs/safe_id"},
+        "approved_protocol_commit": {"$ref": "#/$defs/git_commit"},
+        "public_commitment_sha256": {"$ref": "#/$defs/digest"},
+        "sealed_input_pack_sha256": {"$ref": "#/$defs/digest"},
+        "sealed_oracle_pack_sha256": {"$ref": "#/$defs/digest"},
+        "authorship_records_sha256": {"$ref": "#/$defs/digest"},
+        "relatedness_graph_sha256": {"$ref": "#/$defs/digest"},
+        "leakage_review_sha256": {"$ref": "#/$defs/digest"},
+        "oracle_annotations_sha256": {"$ref": "#/$defs/digest"},
+        "oracle_adjudication_sha256": {"$ref": "#/$defs/digest"},
+        "implementation_freeze_commit": {"$ref": "#/$defs/git_commit"},
+        "governed_prompt_sha256": {"$ref": "#/$defs/digest"},
+        "governed_rules_sha256": {"$ref": "#/$defs/digest"},
+        "comparator_prompt_sha256": {"$ref": "#/$defs/digest"},
+        "comparator_rules_sha256": {"$ref": "#/$defs/digest"},
+        "environment_sha256": {"$ref": "#/$defs/digest"},
+        "models": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/model_record"}},
+        "input_pack_revealed_at": {"$ref": "#/$defs/timestamp"},
+        "all_path_commitments": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/path_commitment"}},
+        "oracle_pack_revealed_at": {"$ref": "#/$defs/timestamp"},
+        "case_exclusions": {"type": "array", "items": {"$ref": "#/$defs/case_exclusion"}},
+        "exclusion_set_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "required": [
+        "schema_version",
+        "experiment_id",
+        "approved_protocol_commit",
+        "public_commitment_sha256",
+        "sealed_input_pack_sha256",
+        "sealed_oracle_pack_sha256",
+        "authorship_records_sha256",
+        "relatedness_graph_sha256",
+        "leakage_review_sha256",
+        "oracle_annotations_sha256",
+        "oracle_adjudication_sha256",
+        "implementation_freeze_commit",
+        "governed_prompt_sha256",
+        "governed_rules_sha256",
+        "comparator_prompt_sha256",
+        "comparator_rules_sha256",
+        "environment_sha256",
+        "models",
+        "input_pack_revealed_at",
+        "all_path_commitments",
+        "oracle_pack_revealed_at",
+        "case_exclusions",
+        "exclusion_set_sha256"
+      ]
+    }
+  }
+}

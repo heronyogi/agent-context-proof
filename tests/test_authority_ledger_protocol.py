@@ -75,7 +75,7 @@ def test_authority_vectors_are_generated_and_schema_valid() -> None:
     generator = _generator_module()
     assert generator.build_vectors() == vectors
     assert vectors["schema_version"] == (
-        "agent-context-proof-authority-vectors-v0.3.1"
+        "agent-context-proof-authority-vectors-v0.3.2"
     )
 
     entry_validator, bundle_validator = _validators()
@@ -145,6 +145,187 @@ def test_bundle_resolves_signing_keys_without_an_unstated_registry() -> None:
         item["key_id"] for item in vectors["keys"] if item["name"] != "recovery"
     }
     assert introduced <= set(resolved)
+
+
+@pytest.mark.parametrize(
+    "introduction_type", ["trust_anchor", "delegation", "rotation", "recovery"]
+)
+@pytest.mark.parametrize("declared_field", ["issuer_id", "lineage_id", "issuer_epoch"])
+def test_signed_entries_must_match_the_identity_tuple_introduced_for_the_key(
+    introduction_type: str, declared_field: str
+) -> None:
+    vectors = _load(VECTOR_PATH)
+    generator = _generator_module()
+    entry_validator, _ = _validators()
+    keys = {item["name"]: item for item in vectors["keys"]}
+    entries = {
+        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
+    }
+    anchor = vectors["example_bundle"]["trust_anchors"][0]
+    introductions = {
+        "trust_anchor": (
+            keys["root"],
+            (
+                anchor["issuer_id"],
+                anchor["lineage_id"],
+                anchor["epoch"],
+                anchor["key_id"],
+            ),
+        ),
+        "delegation": (
+            keys["delegate"],
+            (
+                entries["delegation"]["subject_issuer_id"],
+                entries["delegation"]["subject_lineage_id"],
+                entries["delegation"]["subject_epoch"],
+                entries["delegation"]["subject_key_id"],
+            ),
+        ),
+        "rotation": (
+            keys["successor"],
+            (
+                entries["rotation"]["successor_issuer_id"],
+                entries["rotation"]["lineage_id"],
+                entries["rotation"]["successor_epoch"],
+                entries["rotation"]["successor_key_id"],
+            ),
+        ),
+        "recovery": (
+            keys["recovered"],
+            (
+                entries["recovery"]["replacement_issuer_id"],
+                entries["recovery"]["replacement_lineage_id"],
+                entries["recovery"]["replacement_epoch"],
+                entries["recovery"]["replacement_key_id"],
+            ),
+        ),
+    }
+    key, introduced_tuple = introductions[introduction_type]
+    entry = deepcopy(entries["claim"])
+    entry.pop("signature")
+    entry.update(
+        {
+            "entry_id": f"entry:identity-{introduction_type}-{declared_field}",
+            "issuer_id": introduced_tuple[0],
+            "lineage_id": introduced_tuple[1],
+            "issuer_epoch": introduced_tuple[2],
+            "issuer_key_id": introduced_tuple[3],
+        }
+    )
+    entry[declared_field] = {
+        "issuer_id": "authority:spoofed",
+        "lineage_id": "lineage:spoofed",
+        "issuer_epoch": 777,
+    }[declared_field]
+    signed = generator._sign(entry, key)["signed_entry"]
+
+    entry_validator.validate(signed)
+    payload = deepcopy(signed)
+    signature = payload.pop("signature")
+    public = Ed25519PublicKey.from_public_bytes(
+        _b64url(key["public_key_base64url"])
+    )
+    public.verify(_b64url(signature["value"]), generator._ascii_jcs(payload))
+    declared_tuple = (
+        signed["issuer_id"],
+        signed["lineage_id"],
+        signed["issuer_epoch"],
+        signed["issuer_key_id"],
+    )
+    assert declared_tuple != introduced_tuple
+    assert _load(PROTOCOL_PATH)["authority_ledger"]["identity_profile"][
+        "resolved_tuple_mismatch_result"
+    ] == "INVALID"
+
+
+def test_one_key_introduced_for_conflicting_identity_tuples_is_invalid() -> None:
+    profile = _load(PROTOCOL_PATH)["authority_ledger"]["identity_profile"]
+    key_id = "sha256:" + "0" * 64
+    introduced = {
+        ("authority:one", "lineage:one", 0, key_id),
+        ("authority:two", "lineage:two", 0, key_id),
+    }
+    assert len(introduced) == 2
+    assert profile["identity_collision_result"] == "INVALID"
+
+
+def _scope_contains(parent: dict[str, str], child: dict[str, str]) -> bool:
+    return all(parent[field] == "*" or parent[field] == child[field] for field in (
+        "organization",
+        "repository",
+        "artifact",
+        "action",
+    ))
+
+
+@pytest.mark.parametrize(
+    "entry_type",
+    ["delegation", "rotation", "revocation", "recovery", "precedence", "claim"],
+)
+def test_signed_entry_scope_cannot_expand_an_exact_authorizing_grant(
+    entry_type: str,
+) -> None:
+    vectors = _load(VECTOR_PATH)
+    generator = _generator_module()
+    entry_validator, _ = _validators()
+    keys = {item["key_id"]: item for item in vectors["keys"]}
+    signed_entry = next(
+        item["signed_entry"]
+        for item in vectors["vectors"]
+        if item["entry_type"] == entry_type
+    )
+    parent_scope = deepcopy(signed_entry["scope"])
+    widened = deepcopy(signed_entry)
+    widened.pop("signature")
+    widened["scope"]["repository"] = "*"
+    key = keys[widened["issuer_key_id"]]
+    resigned = generator._sign(widened, key)["signed_entry"]
+
+    entry_validator.validate(resigned)
+    payload = deepcopy(resigned)
+    signature = payload.pop("signature")
+    public = Ed25519PublicKey.from_public_bytes(
+        _b64url(key["public_key_base64url"])
+    )
+    public.verify(_b64url(signature["value"]), generator._ascii_jcs(payload))
+    assert not _scope_contains(parent_scope, resigned["scope"])
+    assert _load(PROTOCOL_PATH)["authority_ledger"]["scope_profile"][
+        "wildcard_expansion_result"
+    ] == "INVALID"
+
+
+def test_wildcard_parent_scope_may_narrow_to_an_exact_child_scope() -> None:
+    vectors = _load(VECTOR_PATH)
+    child = vectors["example_bundle"]["case_coordinate"]
+    parent = deepcopy(child)
+    parent["repository"] = "*"
+    assert _scope_contains(parent, child)
+    assert not _scope_contains(child, parent)
+
+
+def test_anchor_activation_precedes_equal_timestamp_entry_authorization() -> None:
+    protocol = _load(PROTOCOL_PATH)
+    profile = protocol["authority_ledger"]["time_profile"]
+    vectors = _load(VECTOR_PATH)
+    anchor = vectors["example_bundle"]["trust_anchors"][0]
+    delegation = next(
+        item["signed_entry"]
+        for item in vectors["vectors"]
+        if item["entry_type"] == "delegation"
+    )
+    timestamp = _timestamp(delegation["issued_at"])
+
+    assert _timestamp(anchor["not_before"]) == timestamp
+    assert _timestamp(anchor["not_before"]) <= timestamp
+    assert not (_timestamp(anchor["not_before"]) < timestamp)
+    assert profile["timestamp_event_order"][0] == (
+        "activate_external_anchors_and_expire_intervals_at_t"
+    )
+    assert profile["timestamp_event_order"][2] == (
+        "authorize_all_entries_with_issued_at_equal_to_t_against_one_frozen_"
+        "post_transition_snapshot"
+    )
+    assert profile["same_timestamp_dependency"].startswith("prohibited;")
 
 
 def test_tampering_a_signed_claim_fails_cryptographic_verification() -> None:
@@ -392,8 +573,17 @@ def test_delayed_transitions_authorize_once_and_apply_at_the_boundary() -> None:
     }
 
     assert ledger["time_profile"]["entry_authorization_time"] == (
-        "state_immediately_before_issued_at"
+        "state_at_issued_at_after_external_anchor_boundaries_and_earlier_issued_"
+        "transition_effects_before_same_timestamp_entry_effects"
     )
+    assert ledger["time_profile"]["timestamp_event_order"] == [
+        "activate_external_anchors_and_expire_intervals_at_t",
+        "apply_effects_at_t_of_transitions_with_issued_at_before_t",
+        "authorize_all_entries_with_issued_at_equal_to_t_against_one_frozen_"
+        "post_transition_snapshot",
+        "apply_immediate_effects_at_t_of_entries_authorized_in_the_same_"
+        "timestamp_batch",
+    ]
     assert ledger["time_profile"]["delayed_transition_application"] == (
         "apply_at_effective_boundary_without_signer_reauthorization"
     )
@@ -406,8 +596,8 @@ def test_delayed_transitions_authorize_once_and_apply_at_the_boundary() -> None:
     assert ledger["revocation_profile"][
         "signer_reauthorized_at_effective_boundary"
     ] is False
-    assert "At issued_at" in validation["L6_AUTHORIZATION"]
-    assert "without reauthorizing signers" in validation["L7_BOUNDARIES"]
+    assert "forbid same-timestamp entries" in validation["L8_AUTHORIZE_BATCH"]
+    assert "without reauthorizing signers" in validation["L9_BOUNDARIES"]
 
     revocation = entries["revocation"]
     rotation = entries["rotation"]
@@ -493,8 +683,8 @@ def test_revocation_targets_and_same_boundary_order_are_fully_pinned() -> None:
         item["id"]: item["rule"]
         for item in protocol["authority_ledger"]["validation_order"]
     }
-    assert "freeze the pre-boundary heads" in validation["L7_BOUNDARIES"]
-    assert "recursively suppress" in validation["L7_BOUNDARIES"]
+    assert "freeze the pre-boundary heads" in validation["L9_BOUNDARIES"]
+    assert "recursively suppress" in validation["L9_BOUNDARIES"]
 
 
 def test_schema_rejects_unknown_fields_and_malformed_signatures() -> None:
