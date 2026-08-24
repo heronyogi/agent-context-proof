@@ -16,8 +16,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "tests" / "fixtures" / "authority-ledger.v0.3.vectors.json"
-SCHEMA_VERSION = "agent-context-proof-authority-entry-v0.3.1"
-VECTOR_VERSION = "agent-context-proof-authority-vectors-v0.3.2"
+SCHEMA_VERSION = "agent-context-proof-authority-entry-v0.3.2"
+VECTOR_VERSION = "agent-context-proof-authority-vectors-v0.3.3"
 SCOPE = {
     "action": "release",
     "artifact": "release:orion:1.0.0",
@@ -112,9 +112,7 @@ def _base(
 def _sign(entry: dict[str, Any], key: dict[str, str]) -> dict[str, Any]:
     payload = _ascii_jcs(entry)
     padding = "=" * (-len(key["private_seed_base64url_TEST_ONLY"]) % 4)
-    seed = base64.urlsafe_b64decode(
-        key["private_seed_base64url_TEST_ONLY"] + padding
-    )
+    seed = base64.urlsafe_b64decode(key["private_seed_base64url_TEST_ONLY"] + padding)
     signature = Ed25519PrivateKey.from_private_bytes(seed).sign(payload)
     signed = deepcopy(entry)
     signed["signature"] = {
@@ -189,9 +187,7 @@ def build_vectors() -> dict[str, Any]:
             "successor_issuer_id": successor["issuer_id"],
             "successor_key_id": successor["key_id"],
             "successor_permissions": ROOT_PERMISSIONS,
-            "successor_public_key_base64url": successor[
-                "public_key_base64url"
-            ],
+            "successor_public_key_base64url": successor["public_key_base64url"],
         }
     )
 
@@ -228,9 +224,7 @@ def build_vectors() -> dict[str, Any]:
             "replacement_key_id": recovered["key_id"],
             "replacement_lineage_id": recovered["lineage_id"],
             "replacement_permissions": ROOT_PERMISSIONS,
-            "replacement_public_key_base64url": recovered[
-                "public_key_base64url"
-            ],
+            "replacement_public_key_base64url": recovered["public_key_base64url"],
         }
     )
 
@@ -272,7 +266,33 @@ def build_vectors() -> dict[str, Any]:
         _sign(precedence, recovered),
         _sign(claim, recovered),
     ]
+    delayed_delegation = deepcopy(delegation)
+    delayed_delegation["entry_id"] = "entry:delayed-delegation-invalid"
+    delayed_delegation["not_before"] = "2030-02-01T00:00:00Z"
+    dependent_claim = _base(
+        entry_id="entry:premature-dependent-claim",
+        entry_type="claim",
+        issuer=delegate,
+        issuer_epoch=0,
+        issued_at="2030-01-15T00:00:00Z",
+        not_before="2030-01-15T00:00:00Z",
+    )
+    dependent_claim.update(
+        {
+            "claim_name": "release_owner",
+            "claim_value": "owner:premature-delegate",
+        }
+    )
+    delayed_delegation_scenario = {
+        "dependent_claim": _sign(dependent_claim, delegate),
+        "expected_authority_status": "INVALID",
+        "expected_reason_code": "TRUST_OR_TIME_UNSATISFIED",
+        "invalid_introduction": _sign(delayed_delegation, root),
+        "rule": "non_transition_issued_at_must_equal_not_before",
+        "scenario_id": "time:delayed-delegation-does-not-authorize-premature-claim",
+    }
     return {
+        "adversarial_time_scenarios": [delayed_delegation_scenario],
         "example_bundle": {
             "case_coordinate": deepcopy(SCOPE),
             "entries": [item["signed_entry"] for item in vectors],
@@ -288,7 +308,7 @@ def build_vectors() -> dict[str, Any]:
                     "epoch": 0,
                     "lineage_id": delegate["lineage_id"],
                     "payload_sha256": vectors[0]["canonical_payload_sha256"],
-                }
+                },
             ],
             "recovery_trust_anchors": [
                 {
@@ -305,7 +325,7 @@ def build_vectors() -> dict[str, Any]:
                     "scope": deepcopy(SCOPE),
                 }
             ],
-            "schema_version": "agent-context-proof-authority-bundle-v0.3.2",
+            "schema_version": "agent-context-proof-authority-bundle-v0.3.3",
             "trust_anchors": [
                 {
                     "anchor_id": "anchor:root-a-epoch-0",

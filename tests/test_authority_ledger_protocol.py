@@ -15,15 +15,9 @@ from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ENTRY_SCHEMA_PATH = (
-    PROJECT_ROOT / "docs" / "authority-ledger-entry.v0.3.schema.json"
-)
-BUNDLE_SCHEMA_PATH = (
-    PROJECT_ROOT / "docs" / "authority-ledger-bundle.v0.3.schema.json"
-)
-VECTOR_PATH = (
-    PROJECT_ROOT / "tests" / "fixtures" / "authority-ledger.v0.3.vectors.json"
-)
+ENTRY_SCHEMA_PATH = PROJECT_ROOT / "docs" / "authority-ledger-entry.v0.3.schema.json"
+BUNDLE_SCHEMA_PATH = PROJECT_ROOT / "docs" / "authority-ledger-bundle.v0.3.schema.json"
+VECTOR_PATH = PROJECT_ROOT / "tests" / "fixtures" / "authority-ledger.v0.3.vectors.json"
 PROTOCOL_PATH = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.json"
 GENERATOR_PATH = PROJECT_ROOT / "scripts" / "generate_authority_vectors.py"
 
@@ -74,9 +68,7 @@ def test_authority_vectors_are_generated_and_schema_valid() -> None:
     vectors = _load(VECTOR_PATH)
     generator = _generator_module()
     assert generator.build_vectors() == vectors
-    assert vectors["schema_version"] == (
-        "agent-context-proof-authority-vectors-v0.3.2"
-    )
+    assert vectors["schema_version"] == ("agent-context-proof-authority-vectors-v0.3.3")
 
     entry_validator, bundle_validator = _validators()
     bundle_validator.validate(vectors["example_bundle"])
@@ -118,6 +110,46 @@ def test_reference_keys_and_actual_ed25519_signatures_verify() -> None:
         public.verify(_b64url(signature["value"]), canonical)
 
 
+def test_signed_delayed_delegation_vector_has_one_closed_result() -> None:
+    vectors = _load(VECTOR_PATH)
+    generator = _generator_module()
+    entry_validator, _ = _validators()
+    keys = {item["key_id"]: item for item in vectors["keys"]}
+    scenario = vectors["adversarial_time_scenarios"][0]
+
+    assert scenario["expected_authority_status"] == "INVALID"
+    assert scenario["rule"] == "non_transition_issued_at_must_equal_not_before"
+    for field in ("invalid_introduction", "dependent_claim"):
+        vector = scenario[field]
+        signed = deepcopy(vector["signed_entry"])
+        entry_validator.validate(signed)
+        signature = signed.pop("signature")
+        public = Ed25519PublicKey.from_public_bytes(
+            _b64url(keys[signature["key_id"]]["public_key_base64url"])
+        )
+        public.verify(_b64url(signature["value"]), generator._ascii_jcs(signed))
+
+    introduction = scenario["invalid_introduction"]["signed_entry"]
+    claim = scenario["dependent_claim"]["signed_entry"]
+    assert _timestamp(introduction["issued_at"]) < _timestamp(
+        introduction["not_before"]
+    )
+    assert _timestamp(claim["issued_at"]) < _timestamp(introduction["not_before"])
+
+
+def test_every_anchor_and_entry_requires_a_finite_interval_end() -> None:
+    vectors = _load(VECTOR_PATH)
+    entry_validator, bundle_validator = _validators()
+
+    entry = deepcopy(vectors["vectors"][0]["signed_entry"])
+    entry.pop("not_after")
+    assert list(entry_validator.iter_errors(entry))
+
+    bundle = deepcopy(vectors["example_bundle"])
+    bundle["trust_anchors"][0].pop("not_after")
+    assert list(bundle_validator.iter_errors(bundle))
+
+
 def test_bundle_resolves_signing_keys_without_an_unstated_registry() -> None:
     vectors = _load(VECTOR_PATH)
     bundle = vectors["example_bundle"]
@@ -129,9 +161,7 @@ def test_bundle_resolves_signing_keys_without_an_unstated_registry() -> None:
         entry = vector["signed_entry"]
         assert resolved[entry["signature"]["key_id"]]
         if entry["entry_type"] == "delegation":
-            resolved[entry["subject_key_id"]] = entry[
-                "subject_public_key_base64url"
-            ]
+            resolved[entry["subject_key_id"]] = entry["subject_public_key_base64url"]
         elif entry["entry_type"] == "rotation":
             resolved[entry["successor_key_id"]] = entry[
                 "successor_public_key_base64url"
@@ -158,9 +188,7 @@ def test_signed_entries_must_match_the_identity_tuple_introduced_for_the_key(
     generator = _generator_module()
     entry_validator, _ = _validators()
     keys = {item["name"]: item for item in vectors["keys"]}
-    entries = {
-        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
-    }
+    entries = {item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]}
     anchor = vectors["example_bundle"]["trust_anchors"][0]
     introductions = {
         "trust_anchor": (
@@ -222,9 +250,7 @@ def test_signed_entries_must_match_the_identity_tuple_introduced_for_the_key(
     entry_validator.validate(signed)
     payload = deepcopy(signed)
     signature = payload.pop("signature")
-    public = Ed25519PublicKey.from_public_bytes(
-        _b64url(key["public_key_base64url"])
-    )
+    public = Ed25519PublicKey.from_public_bytes(_b64url(key["public_key_base64url"]))
     public.verify(_b64url(signature["value"]), generator._ascii_jcs(payload))
     declared_tuple = (
         signed["issuer_id"],
@@ -233,9 +259,12 @@ def test_signed_entries_must_match_the_identity_tuple_introduced_for_the_key(
         signed["issuer_key_id"],
     )
     assert declared_tuple != introduced_tuple
-    assert _load(PROTOCOL_PATH)["authority_ledger"]["identity_profile"][
-        "resolved_tuple_mismatch_result"
-    ] == "INVALID"
+    assert (
+        _load(PROTOCOL_PATH)["authority_ledger"]["identity_profile"][
+            "resolved_tuple_mismatch_result"
+        ]
+        == "INVALID"
+    )
 
 
 def test_one_key_introduced_for_conflicting_identity_tuples_is_invalid() -> None:
@@ -250,12 +279,15 @@ def test_one_key_introduced_for_conflicting_identity_tuples_is_invalid() -> None
 
 
 def _scope_contains(parent: dict[str, str], child: dict[str, str]) -> bool:
-    return all(parent[field] == "*" or parent[field] == child[field] for field in (
-        "organization",
-        "repository",
-        "artifact",
-        "action",
-    ))
+    return all(
+        parent[field] == "*" or parent[field] == child[field]
+        for field in (
+            "organization",
+            "repository",
+            "artifact",
+            "action",
+        )
+    )
 
 
 @pytest.mark.parametrize(
@@ -284,14 +316,15 @@ def test_signed_entry_scope_cannot_expand_an_exact_authorizing_grant(
     entry_validator.validate(resigned)
     payload = deepcopy(resigned)
     signature = payload.pop("signature")
-    public = Ed25519PublicKey.from_public_bytes(
-        _b64url(key["public_key_base64url"])
-    )
+    public = Ed25519PublicKey.from_public_bytes(_b64url(key["public_key_base64url"]))
     public.verify(_b64url(signature["value"]), generator._ascii_jcs(payload))
     assert not _scope_contains(parent_scope, resigned["scope"])
-    assert _load(PROTOCOL_PATH)["authority_ledger"]["scope_profile"][
-        "wildcard_expansion_result"
-    ] == "INVALID"
+    assert (
+        _load(PROTOCOL_PATH)["authority_ledger"]["scope_profile"][
+            "wildcard_expansion_result"
+        ]
+        == "INVALID"
+    )
 
 
 def test_wildcard_parent_scope_may_narrow_to_an_exact_child_scope() -> None:
@@ -360,9 +393,10 @@ def test_entry_schema_and_protocol_require_the_same_type_specific_fields() -> No
         for entry_type in declared
     }
     assert schema_required == declared
-    assert schema["$defs"]["scope"]["required"] == protocol[
-        "authority_ledger"
-    ]["scope_profile"]["coordinate_fields"]
+    assert (
+        schema["$defs"]["scope"]["required"]
+        == protocol["authority_ledger"]["scope_profile"]["coordinate_fields"]
+    )
     assert protocol["authority_ledger"]["schema_files"] == {
         "bundle": "docs/authority-ledger-bundle.v0.3.schema.json",
         "entry": "docs/authority-ledger-entry.v0.3.schema.json",
@@ -375,18 +409,16 @@ def test_entry_schema_and_protocol_require_the_same_type_specific_fields() -> No
 def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() -> None:
     vectors = _load(VECTOR_PATH)
     keys = {item["issuer_id"]: item for item in vectors["keys"]}
-    entries = {
-        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
-    }
+    entries = {item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]}
 
     rotation = entries["rotation"]
     successor = keys[rotation["successor_issuer_id"]]
     assert rotation["successor_epoch"] == rotation["issuer_epoch"] + 1
     assert successor["lineage_id"] == rotation["lineage_id"]
     assert successor["key_id"] == rotation["successor_key_id"]
-    assert successor["public_key_base64url"] == rotation[
-        "successor_public_key_base64url"
-    ]
+    assert (
+        successor["public_key_base64url"] == rotation["successor_public_key_base64url"]
+    )
     assert rotation["successor_permissions"] == sorted(
         set(rotation["successor_permissions"])
     )
@@ -394,9 +426,9 @@ def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() ->
     delegation = entries["delegation"]
     delegate = keys[delegation["subject_issuer_id"]]
     assert delegation["subject_key_id"] == delegate["key_id"]
-    assert delegation["subject_public_key_base64url"] == delegate[
-        "public_key_base64url"
-    ]
+    assert (
+        delegation["subject_public_key_base64url"] == delegate["public_key_base64url"]
+    )
     assert delegation["subject_lineage_id"] == delegate["lineage_id"]
     assert delegation["permissions"] == sorted(set(delegation["permissions"]))
 
@@ -407,18 +439,15 @@ def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() ->
     assert recovery_signer["name"] == "recovery"
     assert recovery_signer["lineage_id"] != compromised["lineage_id"]
     assert recovery["predecessor_entry_id"] == rotation["entry_id"]
-    assert recovery["compromised_issuer_id"] == rotation[
-        "successor_issuer_id"
-    ]
+    assert recovery["compromised_issuer_id"] == rotation["successor_issuer_id"]
     assert recovery["compromised_lineage_id"] == rotation["lineage_id"]
     assert recovery["replacement_key_id"] == replacement["key_id"]
-    assert recovery["replacement_public_key_base64url"] == replacement[
-        "public_key_base64url"
-    ]
+    assert (
+        recovery["replacement_public_key_base64url"]
+        == replacement["public_key_base64url"]
+    )
     assert recovery["replacement_lineage_id"] == replacement["lineage_id"]
-    assert recovery["replacement_lineage_id"] == recovery[
-        "compromised_lineage_id"
-    ]
+    assert recovery["replacement_lineage_id"] == recovery["compromised_lineage_id"]
     assert recovery["replacement_epoch"] == rotation["successor_epoch"] + 1
     assert recovery["replacement_permissions"] == sorted(
         set(recovery["replacement_permissions"])
@@ -433,28 +462,21 @@ def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() ->
 
     revocation = entries["revocation"]
     boundary = _timestamp(revocation["effective_at"])
-    assert _timestamp(revocation["issued_at"]) < _timestamp(
-        rotation["not_before"]
-    )
+    assert _timestamp(revocation["issued_at"]) < _timestamp(rotation["not_before"])
     assert _timestamp(rotation["not_before"]) < boundary
     assert _timestamp("2030-05-31T23:59:59Z") < boundary
     assert _timestamp("2030-06-01T00:00:00Z") >= boundary
 
     precedence = entries["precedence"]
-    assert _timestamp(precedence["issued_at"]) >= _timestamp(
-        recovery["effective_at"]
-    )
+    assert _timestamp(precedence["issued_at"]) >= _timestamp(recovery["effective_at"])
     assert precedence["higher_issuer_id"] != precedence["lower_issuer_id"]
     assert precedence["scope"] == vectors["example_bundle"]["case_coordinate"]
 
     claim = entries["claim"]
-    assert _timestamp(claim["issued_at"]) >= _timestamp(
-        recovery["effective_at"]
-    )
+    assert _timestamp(claim["issued_at"]) >= _timestamp(recovery["effective_at"])
 
     heads = {
-        item["lineage_id"]: item
-        for item in vectors["example_bundle"]["lineage_heads"]
+        item["lineage_id"]: item for item in vectors["example_bundle"]["lineage_heads"]
     }
     recovery_vector = next(
         item for item in vectors["vectors"] if item["entry_type"] == "recovery"
@@ -466,9 +488,7 @@ def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() ->
         "payload_sha256": recovery_vector["canonical_payload_sha256"],
     }
     delegation_vector = next(
-        item
-        for item in vectors["vectors"]
-        if item["entry_type"] == "delegation"
+        item for item in vectors["vectors"] if item["entry_type"] == "delegation"
     )
     assert heads[delegation["subject_lineage_id"]] == {
         "entry_id": delegation["entry_id"],
@@ -481,9 +501,7 @@ def test_rotation_recovery_revocation_and_precedence_cross_field_invariants() ->
 def test_recovery_transition_rejects_lineage_epoch_and_predecessor_mismatch() -> None:
     vectors = _load(VECTOR_PATH)
     protocol = _load(PROTOCOL_PATH)
-    entries = {
-        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
-    }
+    entries = {item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]}
     recovery = entries["recovery"]
     predecessor = entries["rotation"]
     profile = protocol["authority_ledger"]["recovery_profile"]
@@ -492,15 +510,11 @@ def test_recovery_transition_rejects_lineage_epoch_and_predecessor_mismatch() ->
         found = []
         if candidate["predecessor_entry_id"] != predecessor["entry_id"]:
             found.append("predecessor")
-        if candidate["compromised_issuer_id"] != predecessor[
-            "successor_issuer_id"
-        ]:
+        if candidate["compromised_issuer_id"] != predecessor["successor_issuer_id"]:
             found.append("issuer")
         if candidate["compromised_lineage_id"] != predecessor["lineage_id"]:
             found.append("compromised_lineage")
-        if candidate["replacement_lineage_id"] != candidate[
-            "compromised_lineage_id"
-        ]:
+        if candidate["replacement_lineage_id"] != candidate["compromised_lineage_id"]:
             found.append("replacement_lineage")
         if candidate["replacement_epoch"] != predecessor["successor_epoch"] + 1:
             found.append("epoch")
@@ -533,9 +547,10 @@ def test_rollback_head_contract_is_bound_to_the_bundle_schema() -> None:
     rollback = protocol["authority_ledger"]["rollback_profile"]
 
     assert "lineage_heads" in bundle_schema["required"]
-    assert bundle_schema["$defs"]["lineage_head"]["required"] == rollback[
-        "head_pin_fields"
-    ]
+    assert (
+        bundle_schema["$defs"]["lineage_head"]["required"]
+        == rollback["head_pin_fields"]
+    )
     assert rollback["head_pin_coverage"] == (
         "every_signer_and_endpoint_lineage_of_a_potentially_matching_claim_or_"
         "active_precedence_at_validation_time"
@@ -564,13 +579,9 @@ def test_rollback_head_contract_is_bound_to_the_bundle_schema() -> None:
 def test_delayed_transitions_authorize_once_and_apply_at_the_boundary() -> None:
     protocol = _load(PROTOCOL_PATH)
     ledger = protocol["authority_ledger"]
-    validation = {
-        item["id"]: item["rule"] for item in ledger["validation_order"]
-    }
+    validation = {item["id"]: item["rule"] for item in ledger["validation_order"]}
     vectors = _load(VECTOR_PATH)
-    entries = {
-        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
-    }
+    entries = {item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]}
 
     assert ledger["time_profile"]["entry_authorization_time"] == (
         "state_at_issued_at_after_external_anchor_boundaries_and_earlier_issued_"
@@ -581,37 +592,37 @@ def test_delayed_transitions_authorize_once_and_apply_at_the_boundary() -> None:
         "apply_effects_at_t_of_transitions_with_issued_at_before_t",
         "authorize_all_entries_with_issued_at_equal_to_t_against_one_frozen_"
         "post_transition_snapshot",
-        "apply_immediate_effects_at_t_of_entries_authorized_in_the_same_"
-        "timestamp_batch",
+        "apply_claim_delegation_precedence_and_same_boundary_transition_effects_"
+        "at_t_as_one_batch",
     ]
     assert ledger["time_profile"]["delayed_transition_application"] == (
         "apply_at_effective_boundary_without_signer_reauthorization"
     )
     assert ledger["time_profile"]["delayed_transition_time_order"] == (
         "issued_at_at_or_before_not_before_at_or_before_effective_boundary"
+        "_strictly_before_not_after"
     )
-    assert ledger["time_profile"][
-        "boundary_must_be_within_validity_interval"
-    ] is True
-    assert ledger["revocation_profile"][
-        "signer_reauthorized_at_effective_boundary"
-    ] is False
+    assert ledger["time_profile"]["boundary_must_be_within_validity_interval"] is True
+    assert (
+        ledger["revocation_profile"]["signer_reauthorized_at_effective_boundary"]
+        is False
+    )
     assert "forbid same-timestamp entries" in validation["L8_AUTHORIZE_BATCH"]
     assert "without reauthorizing signers" in validation["L9_BOUNDARIES"]
 
     revocation = entries["revocation"]
     rotation = entries["rotation"]
     assert revocation["issuer_id"] == rotation["issuer_id"]
-    assert _timestamp(revocation["issued_at"]) < _timestamp(
-        rotation["not_before"]
-    ) < _timestamp(revocation["effective_at"])
+    assert (
+        _timestamp(revocation["issued_at"])
+        < _timestamp(rotation["not_before"])
+        < _timestamp(revocation["effective_at"])
+    )
 
     for entry in entries.values():
         assert _timestamp(entry["issued_at"]) <= _timestamp(entry["not_before"])
         if "not_after" in entry:
-            assert _timestamp(entry["not_before"]) < _timestamp(
-                entry["not_after"]
-            )
+            assert _timestamp(entry["not_before"]) < _timestamp(entry["not_after"])
     for entry_type, boundary_field in {
         "recovery": "effective_at",
         "revocation": "effective_at",
@@ -627,9 +638,7 @@ def test_revocation_targets_and_same_boundary_order_are_fully_pinned() -> None:
     protocol = _load(PROTOCOL_PATH)
     profile = protocol["authority_ledger"]["revocation_profile"]
     vectors = _load(VECTOR_PATH)
-    entries = {
-        item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]
-    }
+    entries = {item["entry_type"]: item["signed_entry"] for item in vectors["vectors"]}
     revocation = entries["revocation"]
     delegation = entries["delegation"]
 
@@ -701,9 +710,10 @@ def test_schema_rejects_unknown_fields_and_malformed_signatures() -> None:
 
 def test_strict_i_json_profile_rejects_duplicate_members() -> None:
     protocol = _load(PROTOCOL_PATH)
-    assert protocol["authority_ledger"]["json_profile"][
-        "duplicate_member_names"
-    ] == "REJECT"
+    assert (
+        protocol["authority_ledger"]["json_profile"]["duplicate_member_names"]
+        == "REJECT"
+    )
 
     def reject_duplicates(pairs):
         result = {}

@@ -15,8 +15,8 @@ source, production data, or internal names are included.
 | Goal | Read |
 | --- | --- |
 | Understand the current claim and its limits | This README and [`docs/proof-protocol.md`](docs/proof-protocol.md) |
-| Review the v0.3.6 protocol successor | [`docs/v0.3-review-guide.md`](docs/v0.3-review-guide.md) |
-| Inspect the exact review-state reconciliation | [`docs/reviews/v0.3.5-reconciliation-2026-08-24.json`](docs/reviews/v0.3.5-reconciliation-2026-08-24.json) |
+| Review the v0.3.7 protocol successor | [`docs/v0.3-review-guide.md`](docs/v0.3-review-guide.md) |
+| Inspect the exact review-state reconciliation | [`v0.3.5 reconciliation`](docs/reviews/v0.3.5-reconciliation-2026-08-24.json) and [`v0.3.6 review disposition`](docs/reviews/v0.3.6-review-disposition-2026-08-24.json) |
 | Inspect the machine contract and strict schemas | [`docs/proof-protocol.v0.3.json`](docs/proof-protocol.v0.3.json) and [`docs/case-authoring.v0.3.md`](docs/case-authoring.v0.3.md) |
 | Reproduce the approved v0.2.2 result | [Reproduction instructions](#reproduce-the-deterministic-proof) |
 | Understand federation boundaries | [`SYSTEM.md`](SYSTEM.md), [`CONTRACTS.md`](CONTRACTS.md), and [`federation/fet-001/`](federation/fet-001/) |
@@ -50,11 +50,13 @@ reproducible [Ed25519/JCS reference vectors](tests/fixtures/authority-ledger.v0.
 The vectors contain intentionally public, test-only private seeds for
 conformance testing. They are not production authority data or credentials.
 
-The v0.3.6 successor additionally closes signer-identity, timestamp-order,
-scope-containment, lineage-pin, provenance, and case-envelope ambiguities found
-in an exact-object independent review. Eight strict experiment-artifact schemas
-and [`scripts/validate_v03_artifact.py`](scripts/validate_v03_artifact.py)
-provide a model-independent structural validation surface. These changes remain
+The v0.3.7 successor carries forward the signer-identity, timestamp-order,
+scope-containment, lineage-pin, and provenance corrections, then addresses the
+three blockers found in the exact-object v0.3.6 review: delayed authority
+activation, provenance totality, and complete sealing-workflow validation.
+Thirteen strict experiment-artifact schemas and
+[`scripts/validate_v03_artifact.py`](scripts/validate_v03_artifact.py) provide
+separate record-shape and closed complete-pack validation. These changes remain
 a protocol candidate until separately reviewed; they do not open implementation
 or case-sealing authority by themselves.
 

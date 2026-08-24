@@ -60,7 +60,8 @@
         "epoch",
         "permissions",
         "scope",
-        "not_before"
+        "not_before",
+        "not_after"
       ],
       "type": "object"
     },
@@ -179,7 +180,7 @@
       "type": "array"
     },
     "schema_version": {
-      "const": "agent-context-proof-authority-bundle-v0.3.2"
+      "const": "agent-context-proof-authority-bundle-v0.3.3"
     },
     "trust_anchors": {
       "items": {
@@ -201,6 +202,6 @@
     "lineage_heads",
     "entries"
   ],
-  "title": "Agent Context Proof v0.3.2 authority-ledger bundle",
+  "title": "Agent Context Proof v0.3.3 authority-ledger bundle",
   "type": "object"
 }

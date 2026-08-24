@@ -11,7 +11,7 @@
       },
       {
         "id": "time",
-        "requirement": "Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); at each timestamp activate external anchors and apply earlier-issued transition effects before authorizing one same-timestamp entry batch, then apply that batch's immediate effects; no entry may authorize another entry issued at the same timestamp."
+        "requirement": "Use UTC RFC 3339 timestamps ending in Z and finite half-open validity intervals [not_before, not_after), with not_after required and strictly later than not_before; require issued_at == not_before for claim, delegation, and precedence entries; at each timestamp activate external anchors and apply earlier-issued transition effects before authorizing one same-timestamp entry batch, then apply that batch's immediate effects; no entry may authorize another entry issued at the same timestamp."
       },
       {
         "id": "scope",
@@ -129,17 +129,19 @@
     "time_profile": {
       "boundary_must_be_within_validity_interval": true,
       "delayed_transition_application": "apply_at_effective_boundary_without_signer_reauthorization",
-      "delayed_transition_time_order": "issued_at_at_or_before_not_before_at_or_before_effective_boundary",
+      "delayed_transition_time_order": "issued_at_at_or_before_not_before_at_or_before_effective_boundary_strictly_before_not_after",
       "entry_authorization_time": "state_at_issued_at_after_external_anchor_boundaries_and_earlier_issued_transition_effects_before_same_timestamp_entry_effects",
       "format": "UTC_RFC3339_Z",
       "interval": "[not_before,not_after)",
+      "not_after": "required_finite_boundary_strictly_after_not_before_for_every_entry_and_external_anchor",
+      "non_transition_activation": "claim_delegation_and_precedence_require_issued_at_equal_to_not_before_and_take_effect_only_in_the_issued_at_step_4_batch",
       "revocation_effective_boundary": "inclusive",
       "same_timestamp_dependency": "prohibited;entries_with_equal_issued_at_are_authorized_against_one_frozen_snapshot_and_none_can_authorize_another",
       "timestamp_event_order": [
         "activate_external_anchors_and_expire_intervals_at_t",
         "apply_effects_at_t_of_transitions_with_issued_at_before_t",
         "authorize_all_entries_with_issued_at_equal_to_t_against_one_frozen_post_transition_snapshot",
-        "apply_immediate_effects_at_t_of_entries_authorized_in_the_same_timestamp_batch"
+        "apply_claim_delegation_precedence_and_same_boundary_transition_effects_at_t_as_one_batch"
       ],
       "validation_time_source": "frozen_case_record"
     },
@@ -340,25 +342,42 @@
   "blind_evaluation": {
     "artifact_schema_contract": {
       "closed_validation_algorithm": "scripts/validate_v03_artifact.py",
+      "closed_validation_mode": "complete-pack",
       "duplicate_json_members": "REJECT",
       "schema_files": {
         "authorship_attestation": "docs/authorship-attestation.v0.3.schema.json",
+        "authorship_collection": "docs/authorship-collection.v0.3.schema.json",
         "case_record": "docs/case-record.v0.3.schema.json",
         "freeze_reveal_record": "docs/freeze-reveal-record.v0.3.schema.json",
         "leakage_review_attestation": "docs/leakage-review-attestation.v0.3.schema.json",
         "oracle_record": "docs/oracle-record.v0.3.schema.json",
+        "oracle_reveal_record": "docs/oracle-reveal-record.v0.3.schema.json",
         "pack_manifest": "docs/sealed-pack-manifest.v0.3.schema.json",
+        "path_output_commitment": "docs/path-output-commitment.v0.3.schema.json",
+        "population_freeze_record": "docs/population-freeze-record.v0.3.schema.json",
         "public_commitment": "docs/public-commitment.v0.3.schema.json",
+        "relatedness_graph": "docs/relatedness-graph.v0.3.schema.json",
         "result_record": "docs/result-record.v0.3.schema.json"
       },
       "semantic_checks": [
+        "record_mode_never_certifies_a_complete_pack",
+        "complete_pack_mode_requires_every_archive_manifest_control_and_phase_artifact",
         "case_ids_are_unique_in_the_sealed_input_pack",
         "each_distinct_family_id_has_exactly_one_authorship_attestation",
+        "distinct_primary_authors_and_recomputed_relatedness_components_meet_post_exclusion_floors",
+        "every_committed_case_has_one_bound_PASS_leakage_record",
+        "canonical_USTAR_archives_contain_only_regular_files_with_exact_manifest_byte_size_and_digest_coverage",
+        "archive_bytes_equal_reference_USTAR_reserialization_including_zero_padding_to_the_next_10240_byte_record",
         "manifest_paths_are_unique_and_unicode_code_point_sorted",
         "manifest_paths_are_relative_posix_without_dot_segments",
         "oracle_case_ids_exactly_equal_input_case_ids",
+        "two_distinct_annotations_and_one_distinct_adjudicator_are_required_per_oracle",
+        "oracle_rule_output_reason_and_provenance_relations_are_closed",
         "oracle_rule_ids_and_reason_codes_are_unicode_code_point_sorted",
-        "aggregate_counts_equal_validated_pack_contents"
+        "aggregate_counts_equal_validated_pack_contents",
+        "population_freezes_before_input_reveal_and_exclusions_precede_population_freeze",
+        "one_timestamped_output_commitment_per_declared_path_precedes_oracle_reveal",
+        "final_receipt_binds_population_outputs_and_oracle_reveal_by_exact_digest"
       ],
       "unknown_properties": "REJECT"
     },
@@ -372,12 +391,13 @@
         "primary_author_id",
         "coauthor_ids",
         "implementation_roles",
-        "shared_source_digests",
+        "shared_sources",
         "coordination_disclosures",
         "conflicts_of_interest",
         "attestation_timestamp",
-        "attestation_signature"
+        "declaration"
       ],
+      "declaration_authentication": "not_claimed;archive_commitment_prevents_silent_mutation_but_real_world_identity_and_eligibility_require_external_review",
       "shared_outcome_determining_source_rule": "same_independence_cluster"
     },
     "envelopes": {
@@ -390,7 +410,8 @@
           "aggregate_family_count",
           "sealed_input_pack_sha256",
           "sealed_oracle_pack_sha256",
-          "authorship_attestation_sha256",
+          "authorship_collection_sha256",
+          "relatedness_graph_sha256",
           "leakage_review_attestation_sha256"
         ],
         "prohibited_before_freeze": [
@@ -412,7 +433,23 @@
       },
       "sealed_oracle_pack": {
         "reveal_after": "all_path_outputs_digest_committed"
-      }
+      },
+      "archive_profile": {
+        "format": "USTAR_CANONICAL_V0.3.7",
+        "members": "regular_files_only",
+        "member_order": "ascending_unicode_code_point_path",
+        "metadata": "uid_0_gid_0_empty_names_mtime_0_mode_0644_no_pax",
+        "byte_serialization": "reference_USTAR_headers_and_zero_file_padding_two_zero_end_blocks_then_zero_padding_to_next_10240_byte_record",
+        "manifest_coverage": "exact_all_archive_files_with_byte_size_and_sha256",
+        "extraction": "never_extract_during_validation;read_member_bytes_only"
+      },
+      "phase_records": [
+        "population_freeze_record",
+        "path_output_commitment_per_declared_path",
+        "oracle_reveal_record",
+        "freeze_reveal_record"
+      ],
+      "phase_order": "population_freeze_before_input_reveal_before_or_equal_path_execution;all_output_commitments_strictly_before_oracle_reveal;final_receipt_at_or_after_oracle_reveal"
     },
     "leakage_review": {
       "allowed_dispositions": [
@@ -652,6 +689,91 @@
     "mechanism_unknown_output_rule": "V8_MECHANISM_UNKNOWN",
     "mixed_evidence_rule": "UNKNOWN_dominates_UNSATISFIED_dominates_SATISFIED"
   },
+  "oracle_record_relations": {
+    "authority_rule_by_status": {
+      "CONFLICT": "OA2_CONFLICT",
+      "INDETERMINATE": "OA4_UNKNOWN",
+      "INVALID": "OA3_INVALID",
+      "VALID": "OA1_VALID"
+    },
+    "evidence_rules_by_v_rule": {
+      "V1_READY": ["OE8_ALL_SATISFIED"],
+      "V2_HOLD": [
+        "OE1_REQUIRED_ABSENT",
+        "OE2_POLICY_FALSE",
+        "OE3_TRUST_OR_TIME_FALSE"
+      ],
+      "V3_EVIDENCE_UNKNOWN": [
+        "OE4_UNREADABLE",
+        "OE5_UNRESOLVED_CONTRADICTION",
+        "OE6_SEMANTICALLY_UNJUDGEABLE",
+        "OE7_INVENTORY_UNKNOWN"
+      ]
+    },
+    "allowed_reason_codes_by_v_rule": {
+      "V1_READY": [
+        "ALL_REQUIREMENTS_SATISFIED",
+        "AUTHORITY_VALID",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE"
+      ],
+      "V2_HOLD": [
+        "AUTHORITY_VALID",
+        "POLICY_UNSATISFIED",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REQUIRED_EVIDENCE_ABSENT",
+        "REVOCATION_EFFECTIVE",
+        "TRUST_OR_TIME_UNSATISFIED"
+      ],
+      "V3_EVIDENCE_UNKNOWN": [
+        "AUTHORITY_VALID",
+        "EVIDENCE_CONTRADICTION",
+        "EVIDENCE_UNREADABLE",
+        "INVENTORY_INCOMPLETE",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE",
+        "SEMANTICALLY_UNJUDGEABLE"
+      ],
+      "V4_AUTHORITY_CONFLICT": [
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE",
+        "VALID_ISSUER_CONFLICT"
+      ],
+      "V5_AUTHORITY_INVALID": [
+        "AUTHORITY_INVALID",
+        "DUPLICATE_LINEAGE_HEAD",
+        "IDENTITY_BINDING_MISMATCH",
+        "ROLLBACK_DETECTED",
+        "SCOPE_ESCALATION",
+        "TRUST_OR_TIME_UNSATISFIED"
+      ],
+      "V6_AUTHORITY_UNKNOWN": ["AUTHORITY_INDETERMINATE"],
+      "V7_MECHANISM_NONCONFORMANT": ["MECHANISM_NONCONFORMANT"],
+      "V8_MECHANISM_UNKNOWN": ["MECHANISM_INDETERMINATE"]
+    },
+    "required_reason_codes_by_v_rule": {
+      "V1_READY": ["ALL_REQUIREMENTS_SATISFIED"],
+      "V2_HOLD": [
+        "POLICY_UNSATISFIED",
+        "REQUIRED_EVIDENCE_ABSENT",
+        "TRUST_OR_TIME_UNSATISFIED"
+      ],
+      "V3_EVIDENCE_UNKNOWN": [
+        "EVIDENCE_CONTRADICTION",
+        "EVIDENCE_UNREADABLE",
+        "INVENTORY_INCOMPLETE",
+        "SEMANTICALLY_UNJUDGEABLE"
+      ],
+      "V4_AUTHORITY_CONFLICT": ["VALID_ISSUER_CONFLICT"],
+      "V5_AUTHORITY_INVALID": ["AUTHORITY_INVALID"],
+      "V6_AUTHORITY_UNKNOWN": ["AUTHORITY_INDETERMINATE"],
+      "V7_MECHANISM_NONCONFORMANT": ["MECHANISM_NONCONFORMANT"],
+      "V8_MECHANISM_UNKNOWN": ["MECHANISM_INDETERMINATE"]
+    }
+  },
   "pass_conditions": {
     "allowed_false_ready": 0,
     "allowed_missed_authority_conflicts": 0,
@@ -668,18 +790,20 @@
   },
   "provenance_contract": {
     "array_ordering": {
-      "authority_chains": "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id)",
+      "authority_chains": "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id,chain_sha256)",
+      "authority_evaluation_records": "ascending_unicode_code_point_tuple(record_id,payload_sha256)",
       "authority_dependencies": "ascending_unicode_code_point_tuple(dependency_type,record_id,payload_sha256)",
       "authorization_records_within_dependency": "semantic_chain_order_from_authorizing_anchor_to_dependency_record",
       "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
       "decisive_for_within_dependency": "ascending_unicode_code_point",
       "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
-      "records_within_authority_chain": "semantic_chain_order_from_anchor_or_delegation_to_claim",
+      "records_within_authority_chain": "semantic_chain_order_from_anchor_to_claim",
       "unevaluated_stages": "stage_order_suffix"
     },
     "authority_chain_required_fields": [
       "issuer_id",
       "claim_entry_id",
+      "chain_sha256",
       "records"
     ],
     "authority_record_required_fields": [
@@ -687,6 +811,8 @@
       "payload_sha256"
     ],
     "authority_record_digest": "sha256_of_utf8_rfc8785_jcs_record_with_top_level_signature_removed_when_present",
+    "authority_chain_digest": "sha256_of_utf8_rfc8785_jcs_object_containing_exactly_issuer_id_claim_entry_id_and_records",
+    "authority_chain_minimum_when_status_valid_or_conflict": 1,
     "authority_dependency_required_fields": [
       "dependency_type",
       "record_id",
@@ -701,6 +827,13 @@
       "recovery",
       "revocation"
     ],
+    "authority_evaluation_record_required_fields": [
+      "record_id",
+      "payload_sha256",
+      "classification",
+      "decisive"
+    ],
+    "authority_evaluation_record_coverage": "exactly_every_anchor_recovery_anchor_and_signed_entry_in_the_case_authority_bundle",
     "conflict_minimum_authority_chains": 2,
     "exact_match": "ordered_paths_record_ids_and_sha256_digests",
     "file_record_required_fields": [
@@ -714,7 +847,7 @@
       },
       {
         "id": "PV2_AUTHORITY_CHAIN",
-        "rule": "Each decisive authority claim records issuer_id, claim_entry_id, and ordered records from its trust anchor or delegation through the claim, with the RFC 8785 payload SHA-256 for every record."
+        "rule": "Each decisive authority claim records issuer_id, claim_entry_id, chain_sha256, and ordered records from its trust anchor through the claim, with the RFC 8785 payload SHA-256 for every record. chain_sha256 is SHA-256 of the RFC 8785 JCS object containing exactly issuer_id, claim_entry_id, and records. At least one chain is required whenever authority_status is VALID or CONFLICT."
       },
       {
         "id": "PV3_AUTHORITY_DEPENDENCIES",
@@ -727,12 +860,17 @@
       {
         "id": "PV5_SHORT_CIRCUIT",
         "rule": "When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance."
+      },
+      {
+        "id": "PV6_BUNDLE_COVERAGE",
+        "rule": "authority_evaluation_records contains every trust anchor, recovery anchor, and signed entry in the exact authority bundle once, with its recomputed payload digest, classification, and decisive flag; every reported chain or dependency resolves to that closed index, every claim endpoint is decisive, and required dependency types are present."
       }
     ],
     "path_format": "relative_posix_without_dot_segments_and_present_in_permitted_inputs_manifest",
     "provenance_required_fields": [
       "authority_bundle_path",
       "authority_bundle_sha256",
+      "authority_evaluation_records",
       "authority_chains",
       "authority_dependencies",
       "contract_records",
@@ -770,7 +908,7 @@
     "TRUST_OR_TIME_UNSATISFIED",
     "VALID_ISSUER_CONFLICT"
   ],
-  "schema_version": "agent-context-proof-protocol-v0.3.6",
+  "schema_version": "agent-context-proof-protocol-v0.3.7",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",

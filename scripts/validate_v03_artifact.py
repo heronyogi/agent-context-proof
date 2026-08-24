@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate v0.3.6 protocol artifacts without model judgment."""
+"""Validate v0.3.7 protocol artifacts without model judgment."""
 
 from __future__ import annotations
 
@@ -8,11 +8,15 @@ import hashlib
 import json
 import math
 import sys
+import tarfile
 from collections import defaultdict
 from collections.abc import Iterable
+from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+import rfc8785
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 
@@ -21,8 +25,103 @@ DOCS = PROJECT_ROOT / "docs"
 SAFE_INTEGER = 9_007_199_254_740_991
 STAGE_ORDER = ["authority", "contract", "evidence"]
 
+TRIPLET_TO_V_RULE = {
+    ("READY", "CONFORMANT", "VALID"): "V1_READY",
+    ("HOLD", "CONFORMANT", "VALID"): "V2_HOLD",
+    ("INDETERMINATE", "CONFORMANT", "VALID"): "V3_EVIDENCE_UNKNOWN",
+    ("AUTHORITY_CONFLICT", "CONFORMANT", "CONFLICT"): "V4_AUTHORITY_CONFLICT",
+    ("INDETERMINATE", "CONFORMANT", "INVALID"): "V5_AUTHORITY_INVALID",
+    ("INDETERMINATE", "CONFORMANT", "INDETERMINATE"): "V6_AUTHORITY_UNKNOWN",
+    ("INDETERMINATE", "NONCONFORMANT", "INDETERMINATE"): ("V7_MECHANISM_NONCONFORMANT"),
+    ("INDETERMINATE", "INDETERMINATE", "INDETERMINATE"): ("V8_MECHANISM_UNKNOWN"),
+}
+AUTHORITY_TO_OA_RULE = {
+    "VALID": "OA1_VALID",
+    "CONFLICT": "OA2_CONFLICT",
+    "INVALID": "OA3_INVALID",
+    "INDETERMINATE": "OA4_UNKNOWN",
+}
+V_RULE_TO_EVIDENCE_RULES = {
+    "V1_READY": {"OE8_ALL_SATISFIED"},
+    "V2_HOLD": {
+        "OE1_REQUIRED_ABSENT",
+        "OE2_POLICY_FALSE",
+        "OE3_TRUST_OR_TIME_FALSE",
+    },
+    "V3_EVIDENCE_UNKNOWN": {
+        "OE4_UNREADABLE",
+        "OE5_UNRESOLVED_CONTRADICTION",
+        "OE6_SEMANTICALLY_UNJUDGEABLE",
+        "OE7_INVENTORY_UNKNOWN",
+    },
+}
+V_RULE_REQUIRED_REASONS = {
+    "V1_READY": {"ALL_REQUIREMENTS_SATISFIED"},
+    "V2_HOLD": {
+        "POLICY_UNSATISFIED",
+        "REQUIRED_EVIDENCE_ABSENT",
+        "TRUST_OR_TIME_UNSATISFIED",
+    },
+    "V3_EVIDENCE_UNKNOWN": {
+        "EVIDENCE_CONTRADICTION",
+        "EVIDENCE_UNREADABLE",
+        "INVENTORY_INCOMPLETE",
+        "SEMANTICALLY_UNJUDGEABLE",
+    },
+    "V4_AUTHORITY_CONFLICT": {"VALID_ISSUER_CONFLICT"},
+    "V5_AUTHORITY_INVALID": {"AUTHORITY_INVALID"},
+    "V6_AUTHORITY_UNKNOWN": {"AUTHORITY_INDETERMINATE"},
+    "V7_MECHANISM_NONCONFORMANT": {"MECHANISM_NONCONFORMANT"},
+    "V8_MECHANISM_UNKNOWN": {"MECHANISM_INDETERMINATE"},
+}
+V_RULE_ALLOWED_REASONS = {
+    "V1_READY": {
+        "ALL_REQUIREMENTS_SATISFIED",
+        "AUTHORITY_VALID",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE",
+    },
+    "V2_HOLD": {
+        "AUTHORITY_VALID",
+        "POLICY_UNSATISFIED",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REQUIRED_EVIDENCE_ABSENT",
+        "REVOCATION_EFFECTIVE",
+        "TRUST_OR_TIME_UNSATISFIED",
+    },
+    "V3_EVIDENCE_UNKNOWN": {
+        "AUTHORITY_VALID",
+        "EVIDENCE_CONTRADICTION",
+        "EVIDENCE_UNREADABLE",
+        "INVENTORY_INCOMPLETE",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE",
+        "SEMANTICALLY_UNJUDGEABLE",
+    },
+    "V4_AUTHORITY_CONFLICT": {
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE",
+        "VALID_ISSUER_CONFLICT",
+    },
+    "V5_AUTHORITY_INVALID": {
+        "AUTHORITY_INVALID",
+        "DUPLICATE_LINEAGE_HEAD",
+        "IDENTITY_BINDING_MISMATCH",
+        "ROLLBACK_DETECTED",
+        "SCOPE_ESCALATION",
+        "TRUST_OR_TIME_UNSATISFIED",
+    },
+    "V6_AUTHORITY_UNKNOWN": {"AUTHORITY_INDETERMINATE"},
+    "V7_MECHANISM_NONCONFORMANT": {"MECHANISM_NONCONFORMANT"},
+    "V8_MECHANISM_UNKNOWN": {"MECHANISM_INDETERMINATE"},
+}
+
 SCHEMA_FILES = {
     "authorship_attestation": DOCS / "authorship-attestation.v0.3.schema.json",
+    "authorship_collection": DOCS / "authorship-collection.v0.3.schema.json",
     "authority_bundle": DOCS / "authority-ledger-bundle.v0.3.schema.json",
     "case_record": DOCS / "case-record.v0.3.schema.json",
     "freeze_reveal_record": DOCS / "freeze-reveal-record.v0.3.schema.json",
@@ -30,8 +129,12 @@ SCHEMA_FILES = {
         DOCS / "leakage-review-attestation.v0.3.schema.json"
     ),
     "oracle_record": DOCS / "oracle-record.v0.3.schema.json",
+    "oracle_reveal_record": DOCS / "oracle-reveal-record.v0.3.schema.json",
     "pack_manifest": DOCS / "sealed-pack-manifest.v0.3.schema.json",
+    "path_output_commitment": DOCS / "path-output-commitment.v0.3.schema.json",
+    "population_freeze_record": DOCS / "population-freeze-record.v0.3.schema.json",
     "public_commitment": DOCS / "public-commitment.v0.3.schema.json",
+    "relatedness_graph": DOCS / "relatedness-graph.v0.3.schema.json",
     "result_record": DOCS / "result-record.v0.3.schema.json",
 }
 REGISTRY_FILES = [
@@ -84,19 +187,27 @@ def _check_ijson(value: Any, location: str = "$") -> None:
     raise StructuralValidationError(f"unsupported JSON value at {location}")
 
 
-def load_strict_json(path: Path) -> dict[str, Any]:
+def parse_strict_json_bytes(data: bytes, label: str) -> dict[str, Any]:
     try:
         value = json.loads(
-            path.read_text(encoding="utf-8"),
+            data.decode("utf-8"),
             object_pairs_hook=_object_without_duplicates,
             parse_constant=_reject_constant,
         )
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise StructuralValidationError(f"{path}: {error}") from error
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise StructuralValidationError(f"{label}: {error}") from error
     _check_ijson(value)
     if not isinstance(value, dict):
-        raise StructuralValidationError(f"{path}: top-level value must be an object")
+        raise StructuralValidationError(f"{label}: top-level value must be an object")
     return value
+
+
+def load_strict_json(path: Path) -> dict[str, Any]:
+    try:
+        data = path.read_bytes()
+    except OSError as error:
+        raise StructuralValidationError(f"{path}: {error}") from error
+    return parse_strict_json_bytes(data, str(path))
 
 
 def _load_schema(path: Path) -> dict[str, Any]:
@@ -137,11 +248,90 @@ def _require_sorted(values: list[Any], expected: list[Any], label: str) -> None:
         raise StructuralValidationError(f"non-canonical {label} order")
 
 
+def _timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _sha256_bytes(value: bytes) -> str:
+    return "sha256:" + hashlib.sha256(value).hexdigest()
+
+
+def _jcs_sha256(value: Any) -> str:
+    try:
+        return _sha256_bytes(rfc8785.dumps(value))
+    except rfc8785.CanonicalizationError as error:
+        raise StructuralValidationError(
+            f"RFC 8785 canonicalization failed: {error}"
+        ) from error
+
+
+def _validate_interval_records(value: dict[str, Any]) -> None:
+    for anchor in [*value["trust_anchors"], *value["recovery_trust_anchors"]]:
+        if _timestamp(anchor["not_before"]) >= _timestamp(anchor["not_after"]):
+            raise StructuralValidationError(
+                f"anchor {anchor['anchor_id']} requires not_before < not_after"
+            )
+
+    for entry in value["entries"]:
+        issued = _timestamp(entry["issued_at"])
+        not_before = _timestamp(entry["not_before"])
+        not_after = _timestamp(entry["not_after"])
+        if not not_before < not_after:
+            raise StructuralValidationError(
+                f"entry {entry['entry_id']} requires not_before < not_after"
+            )
+        if entry["entry_type"] in {"claim", "delegation", "precedence"}:
+            if issued != not_before:
+                raise StructuralValidationError(
+                    f"entry {entry['entry_id']} requires issued_at == not_before"
+                )
+            continue
+        effective = (
+            not_before
+            if entry["entry_type"] == "rotation"
+            else _timestamp(entry["effective_at"])
+        )
+        if not issued <= not_before <= effective < not_after:
+            raise StructuralValidationError(
+                f"entry {entry['entry_id']} has invalid transition time order"
+            )
+
+
 def _validate_provenance(provenance: dict[str, Any]) -> None:
+    evaluation_records = provenance["authority_evaluation_records"]
+    _require_unique(
+        (item["record_id"] for item in evaluation_records),
+        "authority evaluation record_id",
+    )
+    _require_sorted(
+        evaluation_records,
+        sorted(
+            evaluation_records,
+            key=lambda item: (item["record_id"], item["payload_sha256"]),
+        ),
+        "authority_evaluation_records",
+    )
     chains = provenance["authority_chains"]
+    for chain in chains:
+        core = {
+            "issuer_id": chain["issuer_id"],
+            "claim_entry_id": chain["claim_entry_id"],
+            "records": chain["records"],
+        }
+        if chain["chain_sha256"] != _jcs_sha256(core):
+            raise StructuralValidationError(
+                f"authority chain digest mismatch for {chain['claim_entry_id']}"
+            )
     _require_sorted(
         chains,
-        sorted(chains, key=lambda item: (item["issuer_id"], item["claim_entry_id"])),
+        sorted(
+            chains,
+            key=lambda item: (
+                item["issuer_id"],
+                item["claim_entry_id"],
+                item["chain_sha256"],
+            ),
+        ),
         "authority_chains",
     )
     dependencies = provenance["authority_dependencies"]
@@ -179,6 +369,233 @@ def _validate_provenance(provenance: dict[str, Any]) -> None:
         )
 
 
+def _output_triplet(value: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        value["disposition"],
+        value["mechanism_status"],
+        value["authority_status"],
+    )
+
+
+def _validate_output_contract(value: dict[str, Any], *, oracle: bool) -> None:
+    v_rule = TRIPLET_TO_V_RULE[_output_triplet(value)]
+    reasons = set(value["reason_codes"])
+    if not reasons & V_RULE_REQUIRED_REASONS[v_rule]:
+        raise StructuralValidationError(f"{v_rule} requires a matching reason code")
+    if not reasons <= V_RULE_ALLOWED_REASONS[v_rule]:
+        raise StructuralValidationError(f"{v_rule} contains an unrelated reason code")
+
+    provenance = value["provenance"]
+    if (
+        value["authority_status"] in {"VALID", "CONFLICT"}
+        and not provenance["authority_chains"]
+    ):
+        raise StructuralValidationError(
+            "VALID or CONFLICT authority requires at least one authority chain"
+        )
+    if value["authority_status"] == "VALID":
+        if provenance["unevaluated_stages"]:
+            raise StructuralValidationError(
+                "VALID authority routed to evidence cannot skip a stage"
+            )
+        if not provenance["contract_records"] or not provenance["evidence_records"]:
+            raise StructuralValidationError(
+                "VALID authority output requires contract and evidence provenance"
+            )
+    elif value["mechanism_status"] == "CONFORMANT":
+        if provenance["contract_records"] or provenance["evidence_records"]:
+            raise StructuralValidationError(
+                "terminal authority output cannot contain contract or evidence records"
+            )
+        if provenance["unevaluated_stages"] != ["contract", "evidence"]:
+            raise StructuralValidationError(
+                "terminal authority output must skip contract and evidence"
+            )
+
+    if not oracle:
+        return
+    rules = set(value["oracle_rule_ids"])
+    if v_rule in {"V7_MECHANISM_NONCONFORMANT", "V8_MECHANISM_UNKNOWN"}:
+        expected = {v_rule}
+        if rules != expected:
+            raise StructuralValidationError(
+                f"{v_rule} oracle_rule_ids must equal {sorted(expected)}"
+            )
+        return
+
+    oa_rule = AUTHORITY_TO_OA_RULE[value["authority_status"]]
+    expected_base = {v_rule, oa_rule}
+    evidence_allowed = V_RULE_TO_EVIDENCE_RULES.get(v_rule)
+    if evidence_allowed is None:
+        if rules != expected_base:
+            raise StructuralValidationError(
+                f"{v_rule} oracle_rule_ids must equal {sorted(expected_base)}"
+            )
+        return
+    evidence_rules = rules - expected_base
+    if not evidence_rules or not evidence_rules <= evidence_allowed:
+        raise StructuralValidationError(f"{v_rule} has invalid evidence rule IDs")
+    if rules != expected_base | evidence_rules:
+        raise StructuralValidationError(f"{v_rule} has unrelated oracle rule IDs")
+
+
+def _validate_oracle_record(value: dict[str, Any]) -> None:
+    _validate_output_contract(value["oracle"], oracle=True)
+    annotators = [item["annotator_id"] for item in value["annotations"]]
+    _require_unique(annotators, "oracle annotator_id")
+    for annotation in value["annotations"]:
+        if (
+            annotation["case_id"] != value["case_id"]
+            or annotation["case_coordinate"] != value["case_coordinate"]
+            or annotation["validation_time"] != value["validation_time"]
+        ):
+            raise StructuralValidationError(
+                "oracle annotation case binding does not match its record"
+            )
+        _require_sorted(
+            annotation["annotation"]["oracle_rule_ids"],
+            sorted(annotation["annotation"]["oracle_rule_ids"]),
+            "annotation oracle_rule_ids",
+        )
+        _require_sorted(
+            annotation["annotation"]["reason_codes"],
+            sorted(annotation["annotation"]["reason_codes"]),
+            "annotation reason_codes",
+        )
+        _validate_provenance(annotation["annotation"]["provenance"])
+        _validate_output_contract(annotation["annotation"], oracle=True)
+    adjudication = value["adjudication"]
+    if adjudication["adjudicator_id"] in annotators:
+        raise StructuralValidationError(
+            "oracle adjudicator must be distinct from both annotators"
+        )
+    if (
+        adjudication["case_id"] != value["case_id"]
+        or adjudication["case_coordinate"] != value["case_coordinate"]
+        or adjudication["validation_time"] != value["validation_time"]
+    ):
+        raise StructuralValidationError(
+            "oracle adjudication case binding does not match its record"
+        )
+    _require_sorted(
+        adjudication["oracle"]["oracle_rule_ids"],
+        sorted(adjudication["oracle"]["oracle_rule_ids"]),
+        "adjudication oracle_rule_ids",
+    )
+    _require_sorted(
+        adjudication["oracle"]["reason_codes"],
+        sorted(adjudication["oracle"]["reason_codes"]),
+        "adjudication reason_codes",
+    )
+    _validate_provenance(adjudication["oracle"]["provenance"])
+    _validate_output_contract(adjudication["oracle"], oracle=True)
+    if adjudication["oracle"] != value["oracle"]:
+        raise StructuralValidationError(
+            "oracle record must equal the adjudicated oracle payload"
+        )
+    if adjudication["resolution"] == "EXACT_AGREEMENT" and any(
+        item["annotation"] != value["oracle"] for item in value["annotations"]
+    ):
+        raise StructuralValidationError(
+            "EXACT_AGREEMENT requires both annotations to equal the final oracle"
+        )
+
+
+def _validate_authorship(value: dict[str, Any]) -> None:
+    coauthors = value["coauthor_ids"]
+    _require_sorted(coauthors, sorted(coauthors), "coauthor_ids")
+    if value["primary_author_id"] in coauthors:
+        raise StructuralValidationError("primary author cannot also be a coauthor")
+    _require_sorted(
+        value["shared_sources"],
+        sorted(
+            value["shared_sources"], key=lambda item: (item["path"], item["sha256"])
+        ),
+        "shared_sources",
+    )
+    _require_sorted(
+        value["coordination_disclosures"],
+        sorted(
+            value["coordination_disclosures"],
+            key=lambda item: (item["related_family_id"], item["evidence_sha256"]),
+        ),
+        "coordination_disclosures",
+    )
+
+
+def _graph_components(
+    family_ids: list[str], edges: list[dict[str, Any]]
+) -> list[list[str]]:
+    adjacency = {family_id: set() for family_id in family_ids}
+    for edge in edges:
+        left, right = edge["family_ids"]
+        if left not in adjacency or right not in adjacency:
+            raise StructuralValidationError("relatedness edge names an unknown family")
+        adjacency[left].add(right)
+        adjacency[right].add(left)
+    components: list[list[str]] = []
+    unseen = set(family_ids)
+    while unseen:
+        root = min(unseen)
+        stack = [root]
+        component: set[str] = set()
+        while stack:
+            node = stack.pop()
+            if node in component:
+                continue
+            component.add(node)
+            stack.extend(adjacency[node] - component)
+        unseen -= component
+        components.append(sorted(component))
+    return sorted(components, key=lambda item: item[0])
+
+
+def _validate_relatedness_graph(value: dict[str, Any]) -> None:
+    family_ids = value["family_ids"]
+    _require_sorted(family_ids, sorted(family_ids), "relatedness family_ids")
+    for edge in value["edges"]:
+        _require_sorted(
+            edge["family_ids"], sorted(edge["family_ids"]), "edge family_ids"
+        )
+        _require_sorted(
+            edge["relation_types"],
+            sorted(edge["relation_types"]),
+            "edge relation_types",
+        )
+    _require_sorted(
+        value["edges"],
+        sorted(
+            value["edges"],
+            key=lambda item: (
+                item["family_ids"][0],
+                item["family_ids"][1],
+                item["relation_types"],
+                item["evidence_sha256"],
+            ),
+        ),
+        "relatedness edges",
+    )
+    expected_components = _graph_components(family_ids, value["edges"])
+    clusters = value["clusters"]
+    for cluster in clusters:
+        _require_sorted(
+            cluster["family_ids"], sorted(cluster["family_ids"]), "cluster family_ids"
+        )
+        if cluster["cluster_id"] != cluster["family_ids"][0]:
+            raise StructuralValidationError(
+                "cluster_id must equal the first family_id in its component"
+            )
+    _require_sorted(
+        clusters,
+        sorted(clusters, key=lambda item: item["cluster_id"]),
+        "relatedness clusters",
+    )
+    if [item["family_ids"] for item in clusters] != expected_components:
+        raise StructuralValidationError(
+            "relatedness clusters must equal the graph connected components"
+        )
+
+
 def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
     if kind == "authority_bundle":
         anchors = [*value["trust_anchors"], *value["recovery_trust_anchors"]]
@@ -189,6 +606,35 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
             (item["lineage_id"] for item in value["lineage_heads"]),
             "lineage_heads lineage_id",
         )
+        _validate_interval_records(value)
+        records, digests = _record_index(value)
+        for head in value["lineage_heads"]:
+            resolved = records.get(head["entry_id"])
+            if resolved is None or digests[head["entry_id"]] != head["payload_sha256"]:
+                raise StructuralValidationError(
+                    f"lineage head does not resolve exactly: {head['entry_id']}"
+                )
+            record = resolved["value"]
+            if resolved["kind"] == "anchor":
+                lineage_id = record["lineage_id"]
+                epoch = record["epoch"]
+            elif resolved["kind"] == "delegation":
+                lineage_id = record["subject_lineage_id"]
+                epoch = record["subject_epoch"]
+            elif resolved["kind"] == "rotation":
+                lineage_id = record["lineage_id"]
+                epoch = record["successor_epoch"]
+            elif resolved["kind"] == "recovery":
+                lineage_id = record["replacement_lineage_id"]
+                epoch = record["replacement_epoch"]
+            else:
+                raise StructuralValidationError(
+                    f"lineage head is not an authority introduction: {head['entry_id']}"
+                )
+            if head["lineage_id"] != lineage_id or head["epoch"] != epoch:
+                raise StructuralValidationError(
+                    f"lineage head tuple mismatch: {head['entry_id']}"
+                )
     elif kind == "pack_manifest":
         entries = value["entries"]
         paths = [item["path"] for item in entries]
@@ -206,6 +652,7 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
             "oracle reason_codes",
         )
         _validate_provenance(value["oracle"]["provenance"])
+        _validate_oracle_record(value)
     elif kind == "result_record":
         _require_sorted(
             value["reason_codes"],
@@ -213,9 +660,839 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
             "result reason_codes",
         )
         _validate_provenance(value["provenance"])
+        _validate_output_contract(value, oracle=False)
+    elif kind == "authorship_attestation":
+        _validate_authorship(value)
+    elif kind == "authorship_collection":
+        records = value["records"]
+        _require_sorted(
+            records,
+            sorted(records, key=lambda item: item["family_id"]),
+            "authorship records",
+        )
+        _require_unique((item["family_id"] for item in records), "authorship family_id")
+        _require_unique(
+            (item["primary_author_id"] for item in records),
+            "authorship primary_author_id",
+        )
+        for record in records:
+            _validate_authorship(record)
+    elif kind == "relatedness_graph":
+        _validate_relatedness_graph(value)
+    elif kind == "leakage_review_attestation":
+        _require_unique((item["case_id"] for item in value["cases"]), "leakage case_id")
+        _require_unique(
+            (item["randomized_case_id"] for item in value["cases"]),
+            "leakage randomized_case_id",
+        )
+        _require_sorted(
+            value["cases"],
+            sorted(value["cases"], key=lambda item: item["case_id"]),
+            "leakage cases",
+        )
+    elif kind == "population_freeze_record":
+        _require_unique((item["path_id"] for item in value["models"]), "model path_id")
+        _require_sorted(
+            value["models"],
+            sorted(value["models"], key=lambda item: item["path_id"]),
+            "models",
+        )
+        _require_unique(
+            (item["case_id"] for item in value["case_exclusions"]),
+            "excluded case_id",
+        )
+        _require_sorted(
+            value["case_exclusions"],
+            sorted(value["case_exclusions"], key=lambda item: item["case_id"]),
+            "case exclusions",
+        )
+        _require_sorted(
+            value["included_case_ids"],
+            sorted(value["included_case_ids"]),
+            "included_case_ids",
+        )
+    elif kind in {"oracle_reveal_record", "freeze_reveal_record"}:
+        _require_sorted(
+            value["output_commitment_sha256s"],
+            sorted(value["output_commitment_sha256s"]),
+            "output commitment digests",
+        )
+
+
+def _validate_value(
+    kind: str,
+    value: dict[str, Any],
+    label: str,
+    registry: Registry,
+    validators: dict[str, Draft202012Validator],
+) -> None:
+    validator = validators.setdefault(kind, _validator(kind, registry))
+    errors = sorted(validator.iter_errors(value), key=lambda item: list(item.path))
+    if errors:
+        first = errors[0]
+        location = ".".join(str(item) for item in first.absolute_path) or "$"
+        raise StructuralValidationError(f"{label}:{location}: {first.message}")
+    _semantic_validate(kind, value)
+
+
+def _safe_archive_path(value: str) -> bool:
+    return bool(
+        value
+        and not value.startswith("/")
+        and "\\" not in value
+        and "\x00" not in value
+        and "//" not in value
+        and all(part not in {"", ".", ".."} for part in value.split("/"))
+    )
+
+
+def _canonical_ustar_bytes(files: dict[str, bytes]) -> bytes:
+    output = BytesIO()
+    with tarfile.open(
+        fileobj=output,
+        mode="w:",
+        format=tarfile.USTAR_FORMAT,
+    ) as archive:
+        for name in sorted(files):
+            data = files[name]
+            member = tarfile.TarInfo(name)
+            member.size = len(data)
+            member.mode = 0o644
+            member.uid = 0
+            member.gid = 0
+            member.uname = ""
+            member.gname = ""
+            member.mtime = 0
+            archive.addfile(member, BytesIO(data))
+    return output.getvalue()
+
+
+def _load_canonical_ustar(path: Path) -> tuple[bytes, dict[str, bytes]]:
+    try:
+        archive_bytes = path.read_bytes()
+    except OSError as error:
+        raise StructuralValidationError(f"{path}: {error}") from error
+    if len(archive_bytes) % 512 or not archive_bytes.endswith(b"\0" * 1024):
+        raise StructuralValidationError(
+            f"{path}: archive must use complete 512-byte blocks and zero trailer"
+        )
+    files: dict[str, bytes] = {}
+    try:
+        with tarfile.open(path, mode="r:") as archive:
+            members = archive.getmembers()
+            names = [member.name for member in members]
+            _require_sorted(names, sorted(names), f"{path} archive paths")
+            _require_unique(names, f"{path} archive path")
+            for member in members:
+                if not member.isfile() or member.type != tarfile.REGTYPE:
+                    raise StructuralValidationError(
+                        f"{path}:{member.name}: only regular USTAR files are allowed"
+                    )
+                if not _safe_archive_path(member.name):
+                    raise StructuralValidationError(
+                        f"{path}:{member.name}: unsafe archive path"
+                    )
+                if (
+                    member.uid != 0
+                    or member.gid != 0
+                    or member.uname != ""
+                    or member.gname != ""
+                    or member.mtime != 0
+                    or member.mode != 0o644
+                    or member.pax_headers
+                ):
+                    raise StructuralValidationError(
+                        f"{path}:{member.name}: non-canonical USTAR metadata"
+                    )
+                header = archive_bytes[member.offset : member.offset + 512]
+                if header[257:263] != b"ustar\0" or header[263:265] != b"00":
+                    raise StructuralValidationError(
+                        f"{path}:{member.name}: USTAR header required"
+                    )
+                extracted = archive.extractfile(member)
+                if extracted is None:
+                    raise StructuralValidationError(
+                        f"{path}:{member.name}: file bytes unavailable"
+                    )
+                files[member.name] = extracted.read()
+    except (OSError, tarfile.TarError) as error:
+        raise StructuralValidationError(f"{path}: {error}") from error
+    if not files:
+        raise StructuralValidationError(f"{path}: archive is empty")
+    if archive_bytes != _canonical_ustar_bytes(files):
+        raise StructuralValidationError(
+            f"{path}: archive bytes do not match the canonical USTAR serializer"
+        )
+    return archive_bytes, files
+
+
+def _verify_manifest(
+    manifest: dict[str, Any], archive_bytes: bytes, files: dict[str, bytes]
+) -> None:
+    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.7":
+        raise StructuralValidationError("unsupported archive format")
+    if manifest["archive_sha256"] != _sha256_bytes(archive_bytes):
+        raise StructuralValidationError("manifest archive digest mismatch")
+    entries = {item["path"]: item for item in manifest["entries"]}
+    if set(entries) != set(files):
+        raise StructuralValidationError(
+            "manifest entries must exactly equal archive regular files"
+        )
+    for path, data in files.items():
+        entry = entries[path]
+        if entry["size_bytes"] != len(data):
+            raise StructuralValidationError(f"manifest size mismatch for {path}")
+        if entry["sha256"] != _sha256_bytes(data):
+            raise StructuralValidationError(f"manifest digest mismatch for {path}")
+
+
+def _parse_permitted_inputs(data: bytes, label: str) -> list[tuple[str, str]]:
+    try:
+        text = data.decode("utf-8")
+    except UnicodeError as error:
+        raise StructuralValidationError(f"{label}: not UTF-8") from error
+    if not text.endswith("\n"):
+        raise StructuralValidationError(f"{label}: final newline required")
+    records: list[tuple[str, str]] = []
+    for line in text.splitlines():
+        digest, separator, path = line.partition("  ")
+        if (
+            not separator
+            or len(digest) != 71
+            or not digest.startswith("sha256:")
+            or any(character not in "0123456789abcdef" for character in digest[7:])
+            or not _safe_archive_path(path)
+        ):
+            raise StructuralValidationError(f"{label}: malformed manifest line")
+        records.append((path, digest))
+    _require_unique((item[0] for item in records), f"{label} path")
+    _require_sorted(records, sorted(records), label)
+    return records
+
+
+def _record_index(
+    authority_bundle: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    records: dict[str, dict[str, Any]] = {}
+    digests: dict[str, str] = {}
+    for anchor in [
+        *authority_bundle["trust_anchors"],
+        *authority_bundle["recovery_trust_anchors"],
+    ]:
+        record_id = anchor["anchor_id"]
+        records[record_id] = {"kind": "anchor", "value": anchor}
+        digests[record_id] = _jcs_sha256(anchor)
+    for entry in authority_bundle["entries"]:
+        record_id = entry["entry_id"]
+        records[record_id] = {"kind": entry["entry_type"], "value": entry}
+        payload = dict(entry)
+        payload.pop("signature")
+        digests[record_id] = _jcs_sha256(payload)
+    return records, digests
+
+
+def _validate_case_provenance(
+    case: dict[str, Any],
+    oracle: dict[str, Any],
+    input_files: dict[str, bytes],
+    permitted: dict[str, str],
+    registry: Registry,
+    validators: dict[str, Draft202012Validator],
+) -> None:
+    provenance = oracle["oracle"]["provenance"]
+    fixture_directory = case["fixture_directory"]
+
+    def resolve(relative_path: str) -> tuple[str, bytes]:
+        full_path = f"{fixture_directory}/{relative_path}"
+        if full_path not in permitted or full_path not in input_files:
+            raise StructuralValidationError(
+                f"{case['case_id']}: provenance path is not a permitted input: "
+                f"{relative_path}"
+            )
+        data = input_files[full_path]
+        if permitted[full_path] != _sha256_bytes(data):
+            raise StructuralValidationError(
+                f"{case['case_id']}: permitted-input digest mismatch: {relative_path}"
+            )
+        return full_path, data
+
+    _, bundle_bytes = resolve(provenance["authority_bundle_path"])
+    if _sha256_bytes(bundle_bytes) != provenance["authority_bundle_sha256"]:
+        raise StructuralValidationError(
+            f"{case['case_id']}: authority bundle byte digest mismatch"
+        )
+    authority_bundle = parse_strict_json_bytes(
+        bundle_bytes, f"{case['case_id']} authority bundle"
+    )
+    _validate_value(
+        "authority_bundle",
+        authority_bundle,
+        f"{case['case_id']} authority bundle",
+        registry,
+        validators,
+    )
+    if (
+        authority_bundle["validation_time"] != case["validation_time"]
+        or authority_bundle["case_coordinate"] != case["case_coordinate"]
+    ):
+        raise StructuralValidationError(
+            f"{case['case_id']}: authority bundle case binding mismatch"
+        )
+    records, digests = _record_index(authority_bundle)
+    evaluation_records = provenance["authority_evaluation_records"]
+    evaluation_index = {
+        item["record_id"]: item["payload_sha256"] for item in evaluation_records
+    }
+    if evaluation_index != digests:
+        raise StructuralValidationError(
+            f"{case['case_id']}: authority_evaluation_records must cover "
+            "the exact bundle"
+        )
+    decisive_ids = {
+        item["record_id"] for item in evaluation_records if item["decisive"]
+    }
+    claim_ids = {item["claim_entry_id"] for item in provenance["authority_chains"]}
+    for chain in provenance["authority_chains"]:
+        chain_ids = [item["record_id"] for item in chain["records"]]
+        _require_unique(chain_ids, f"{case['case_id']} chain record_id")
+        if chain_ids[-1] != chain["claim_entry_id"]:
+            raise StructuralValidationError(
+                f"{case['case_id']}: claim chain must end at claim_entry_id"
+            )
+        first_chain_record = records.get(chain_ids[0])
+        if first_chain_record is None or first_chain_record["kind"] != "anchor":
+            raise StructuralValidationError(
+                f"{case['case_id']}: claim chain must begin at an external anchor"
+            )
+        claim_record = records.get(chain["claim_entry_id"])
+        if claim_record is None or claim_record["kind"] != "claim":
+            raise StructuralValidationError(
+                f"{case['case_id']}: claim_entry_id must resolve to a claim"
+            )
+        if claim_record["value"]["issuer_id"] != chain["issuer_id"]:
+            raise StructuralValidationError(
+                f"{case['case_id']}: authority chain issuer_id mismatch"
+            )
+        if chain["claim_entry_id"] not in decisive_ids:
+            raise StructuralValidationError(
+                f"{case['case_id']}: claim chain endpoint is not marked decisive"
+            )
+        for authority_record in chain["records"]:
+            record_id = authority_record["record_id"]
+            if (
+                record_id not in digests
+                or authority_record["payload_sha256"] != digests[record_id]
+            ):
+                raise StructuralValidationError(
+                    f"{case['case_id']}: authority chain record mismatch: {record_id}"
+                )
+
+    dependency_pairs: set[tuple[str, str]] = set()
+    for dependency in provenance["authority_dependencies"]:
+        record_id = dependency["record_id"]
+        pair = (dependency["dependency_type"], record_id)
+        if pair in dependency_pairs:
+            raise StructuralValidationError(
+                f"{case['case_id']}: duplicate authority dependency {pair}"
+            )
+        dependency_pairs.add(pair)
+        if (
+            record_id not in digests
+            or dependency["payload_sha256"] != digests[record_id]
+        ):
+            raise StructuralValidationError(
+                f"{case['case_id']}: authority dependency record mismatch: {record_id}"
+            )
+        authorization_ids = [
+            item["record_id"] for item in dependency["authorization_records"]
+        ]
+        if authorization_ids[-1] != record_id:
+            raise StructuralValidationError(
+                f"{case['case_id']}: dependency authorization path must end "
+                "at dependency"
+            )
+        first_authorization_record = records.get(authorization_ids[0])
+        if (
+            first_authorization_record is None
+            or first_authorization_record["kind"] != "anchor"
+        ):
+            raise StructuralValidationError(
+                f"{case['case_id']}: dependency path must begin at an anchor"
+            )
+        for authority_record in dependency["authorization_records"]:
+            authorization_id = authority_record["record_id"]
+            if (
+                authorization_id not in digests
+                or authority_record["payload_sha256"] != digests[authorization_id]
+            ):
+                raise StructuralValidationError(
+                    f"{case['case_id']}: dependency authorization record mismatch"
+                )
+        if not set(dependency["decisive_for"]) <= claim_ids:
+            raise StructuralValidationError(
+                f"{case['case_id']}: decisive_for must name a reported claim endpoint"
+            )
+
+    required_dependencies: set[tuple[str, str]] = set()
+    for record_id in decisive_ids:
+        kind = records[record_id]["kind"]
+        if kind in {"anchor", "delegation", "rotation", "recovery"}:
+            required_dependencies.add(("identity_introduction", record_id))
+        if kind in {"precedence", "recovery", "revocation"}:
+            required_dependencies.add((kind, record_id))
+    for head in authority_bundle["lineage_heads"]:
+        required_dependencies.add(("lineage_head", head["entry_id"]))
+    if not required_dependencies <= dependency_pairs:
+        missing = sorted(required_dependencies - dependency_pairs)
+        raise StructuralValidationError(
+            f"{case['case_id']}: missing decisive authority dependencies: {missing}"
+        )
+
+    for field in ("contract_records", "evidence_records"):
+        for file_record in provenance[field]:
+            _, data = resolve(file_record["path"])
+            if file_record["sha256"] != _sha256_bytes(data):
+                raise StructuralValidationError(
+                    f"{case['case_id']}: {field} digest mismatch"
+                )
+
+
+def _validate_authorship_graph(
+    collection: dict[str, Any], graph: dict[str, Any]
+) -> None:
+    records = collection["records"]
+    by_family = {item["family_id"]: item for item in records}
+    if set(by_family) != set(graph["family_ids"]):
+        raise StructuralValidationError(
+            "authorship and relatedness family sets must be identical"
+        )
+    graph_edges = {
+        tuple(item["family_ids"]): set(item["relation_types"])
+        for item in graph["edges"]
+    }
+    family_ids = sorted(by_family)
+    for index, left_id in enumerate(family_ids):
+        left = by_family[left_id]
+        left_authors = {left["primary_author_id"], *left["coauthor_ids"]}
+        left_sources = {
+            item["sha256"]
+            for item in left["shared_sources"]
+            if item["outcome_determining"]
+        }
+        for right_id in family_ids[index + 1 :]:
+            right = by_family[right_id]
+            right_authors = {right["primary_author_id"], *right["coauthor_ids"]}
+            right_sources = {
+                item["sha256"]
+                for item in right["shared_sources"]
+                if item["outcome_determining"]
+            }
+            required: set[str] = set()
+            if left_authors & right_authors:
+                required.add("SHARED_AUTHOR")
+            if left_sources & right_sources:
+                required.add("OUTCOME_DETERMINING_SOURCE")
+            if any(
+                item["related_family_id"] == right_id
+                and item["expected_outcomes_discussed"]
+                for item in left["coordination_disclosures"]
+            ) or any(
+                item["related_family_id"] == left_id
+                and item["expected_outcomes_discussed"]
+                for item in right["coordination_disclosures"]
+            ):
+                required.add("EXPECTED_OUTCOME_COORDINATION")
+            if not required <= graph_edges.get((left_id, right_id), set()):
+                raise StructuralValidationError(
+                    f"relatedness graph omits required edge for {left_id}, {right_id}"
+                )
+
+
+def validate_complete_pack(
+    *,
+    public_commitment_path: Path,
+    input_archive_path: Path,
+    input_manifest_path: Path,
+    oracle_archive_path: Path,
+    oracle_manifest_path: Path,
+    population_freeze_path: Path,
+    output_commitment_paths: list[Path],
+    oracle_reveal_path: Path,
+    freeze_reveal_path: Path,
+) -> None:
+    registry = _registry()
+    validators: dict[str, Draft202012Validator] = {}
+
+    public_bytes = public_commitment_path.read_bytes()
+    public_commitment = parse_strict_json_bytes(
+        public_bytes, str(public_commitment_path)
+    )
+    input_manifest_bytes = input_manifest_path.read_bytes()
+    input_manifest = parse_strict_json_bytes(
+        input_manifest_bytes, str(input_manifest_path)
+    )
+    oracle_manifest_bytes = oracle_manifest_path.read_bytes()
+    oracle_manifest = parse_strict_json_bytes(
+        oracle_manifest_bytes, str(oracle_manifest_path)
+    )
+    _validate_value(
+        "public_commitment",
+        public_commitment,
+        str(public_commitment_path),
+        registry,
+        validators,
+    )
+    _validate_value(
+        "pack_manifest",
+        input_manifest,
+        str(input_manifest_path),
+        registry,
+        validators,
+    )
+    _validate_value(
+        "pack_manifest",
+        oracle_manifest,
+        str(oracle_manifest_path),
+        registry,
+        validators,
+    )
+    if input_manifest["pack_type"] != "sealed_input_pack":
+        raise StructuralValidationError("input manifest has the wrong pack_type")
+    if oracle_manifest["pack_type"] != "sealed_oracle_pack":
+        raise StructuralValidationError("oracle manifest has the wrong pack_type")
+    input_archive_bytes, input_files = _load_canonical_ustar(input_archive_path)
+    oracle_archive_bytes, oracle_files = _load_canonical_ustar(oracle_archive_path)
+    _verify_manifest(input_manifest, input_archive_bytes, input_files)
+    _verify_manifest(oracle_manifest, oracle_archive_bytes, oracle_files)
+    if public_commitment["sealed_input_pack_sha256"] != _sha256_bytes(
+        input_archive_bytes
+    ) or public_commitment["sealed_oracle_pack_sha256"] != _sha256_bytes(
+        oracle_archive_bytes
+    ):
+        raise StructuralValidationError(
+            "public commitment does not bind the exact sealed archives"
+        )
+
+    case_paths = sorted(
+        path
+        for path in input_files
+        if path.startswith("cases/") and path.endswith("/case.json")
+    )
+    cases: list[dict[str, Any]] = []
+    permitted_by_case: dict[str, dict[str, str]] = {}
+    claimed_input_paths: set[str] = set()
+    for path in case_paths:
+        case = parse_strict_json_bytes(input_files[path], path)
+        _validate_value("case_record", case, path, registry, validators)
+        expected_directory = f"cases/{case['case_id']}"
+        if case["fixture_directory"] != expected_directory or path != (
+            f"{expected_directory}/case.json"
+        ):
+            raise StructuralValidationError(
+                f"{case['case_id']}: non-canonical fixture directory or case path"
+            )
+        expected_manifest = f"{expected_directory}/inputs.sha256"
+        if case["permitted_inputs_manifest"] != expected_manifest:
+            raise StructuralValidationError(
+                f"{case['case_id']}: non-canonical permitted-input manifest path"
+            )
+        manifest_data = input_files.get(expected_manifest)
+        if manifest_data is None:
+            raise StructuralValidationError(
+                f"{case['case_id']}: missing permitted-input manifest"
+            )
+        permitted_records = _parse_permitted_inputs(manifest_data, expected_manifest)
+        permitted = dict(permitted_records)
+        fixture_files = {
+            item
+            for item in input_files
+            if item.startswith(expected_directory + "/")
+            and item not in {path, expected_manifest}
+        }
+        if set(permitted) != fixture_files:
+            raise StructuralValidationError(
+                f"{case['case_id']}: permitted inputs must exactly cover fixture files"
+            )
+        for permitted_path, digest in permitted.items():
+            if digest != _sha256_bytes(input_files[permitted_path]):
+                raise StructuralValidationError(
+                    f"{case['case_id']}: permitted-input digest mismatch"
+                )
+        cases.append(case)
+        permitted_by_case[case["case_id"]] = permitted
+        claimed_input_paths.update({path, expected_manifest, *permitted})
+    _require_unique((item["case_id"] for item in cases), "complete-pack case_id")
+    if len(cases) < 12:
+        raise StructuralValidationError("complete pack requires at least twelve cases")
+    case_ids = {item["case_id"] for item in cases}
+    family_ids = {item["family_id"] for item in cases}
+    if claimed_input_paths != set(input_files):
+        raise StructuralValidationError(
+            "input archive contains a file outside the exact case fixture sets"
+        )
+
+    required_oracle_roots = {
+        "authorship-collection.json",
+        "relatedness-graph.json",
+        "leakage-review.json",
+    }
+    oracle_paths = {f"oracles/{case_id}.json" for case_id in case_ids}
+    if set(oracle_files) != required_oracle_roots | oracle_paths:
+        raise StructuralValidationError(
+            "oracle archive must contain exactly the oracles and three control records"
+        )
+    oracles: dict[str, dict[str, Any]] = {}
+    for case in cases:
+        path = f"oracles/{case['case_id']}.json"
+        oracle = parse_strict_json_bytes(oracle_files[path], path)
+        _validate_value("oracle_record", oracle, path, registry, validators)
+        if (
+            oracle["case_id"] != case["case_id"]
+            or oracle["case_coordinate"] != case["case_coordinate"]
+            or oracle["validation_time"] != case["validation_time"]
+        ):
+            raise StructuralValidationError(f"{path}: oracle-to-case binding mismatch")
+        oracles[case["case_id"]] = oracle
+    authorship = parse_strict_json_bytes(
+        oracle_files["authorship-collection.json"], "authorship-collection.json"
+    )
+    graph = parse_strict_json_bytes(
+        oracle_files["relatedness-graph.json"], "relatedness-graph.json"
+    )
+    leakage = parse_strict_json_bytes(
+        oracle_files["leakage-review.json"], "leakage-review.json"
+    )
+    _validate_value(
+        "authorship_collection",
+        authorship,
+        "authorship-collection.json",
+        registry,
+        validators,
+    )
+    _validate_value(
+        "relatedness_graph", graph, "relatedness-graph.json", registry, validators
+    )
+    _validate_value(
+        "leakage_review_attestation",
+        leakage,
+        "leakage-review.json",
+        registry,
+        validators,
+    )
+    if {item["family_id"] for item in authorship["records"]} != family_ids:
+        raise StructuralValidationError(
+            "authorship family set must equal case family set"
+        )
+    if set(graph["family_ids"]) != family_ids:
+        raise StructuralValidationError(
+            "relatedness family set must equal case family set"
+        )
+    _validate_authorship_graph(authorship, graph)
+    all_authors = {
+        author_id
+        for record in authorship["records"]
+        for author_id in [record["primary_author_id"], *record["coauthor_ids"]]
+    }
+    for record in authorship["records"]:
+        if any(
+            item["related_family_id"] not in family_ids
+            for item in record["coordination_disclosures"]
+        ):
+            raise StructuralValidationError(
+                "coordination disclosure names an unknown family"
+            )
+    if (
+        leakage["reviewer_id"] == leakage["oracle_custodian_id"]
+        or leakage["reviewer_id"] in all_authors
+        or leakage["oracle_custodian_id"] in all_authors
+    ):
+        raise StructuralValidationError(
+            "leakage reviewer and custodian must be distinct non-authors"
+        )
+    if set(item["case_id"] for item in leakage["cases"]) != case_ids or any(
+        item["disposition"] != "PASS" for item in leakage["cases"]
+    ):
+        raise StructuralValidationError(
+            "every committed case requires exactly one PASS leakage review"
+        )
+    if leakage["input_pack_sha256"] != _sha256_bytes(input_archive_bytes):
+        raise StructuralValidationError("leakage review is not bound to the input pack")
+    committed_controls = {
+        "authorship_collection_sha256": _sha256_bytes(
+            oracle_files["authorship-collection.json"]
+        ),
+        "relatedness_graph_sha256": _sha256_bytes(
+            oracle_files["relatedness-graph.json"]
+        ),
+        "leakage_review_attestation_sha256": _sha256_bytes(
+            oracle_files["leakage-review.json"]
+        ),
+    }
+    for field, digest in committed_controls.items():
+        if public_commitment[field] != digest:
+            raise StructuralValidationError(
+                f"public commitment does not bind exact {field} bytes"
+            )
+    if public_commitment["aggregate_case_count"] != len(cases) or public_commitment[
+        "aggregate_family_count"
+    ] != len(family_ids):
+        raise StructuralValidationError("public commitment aggregate counts mismatch")
+    for manifest in (input_manifest, oracle_manifest):
+        if manifest["case_count"] != len(cases) or manifest["family_count"] != len(
+            family_ids
+        ):
+            raise StructuralValidationError("pack manifest aggregate counts mismatch")
+    for case in cases:
+        _validate_case_provenance(
+            case,
+            oracles[case["case_id"]],
+            input_files,
+            permitted_by_case[case["case_id"]],
+            registry,
+            validators,
+        )
+
+    population_bytes = population_freeze_path.read_bytes()
+    population = parse_strict_json_bytes(population_bytes, str(population_freeze_path))
+    _validate_value(
+        "population_freeze_record",
+        population,
+        str(population_freeze_path),
+        registry,
+        validators,
+    )
+    if population["public_commitment_sha256"] != _sha256_bytes(public_bytes):
+        raise StructuralValidationError(
+            "population freeze does not bind public commitment"
+        )
+    if population["input_manifest_sha256"] != _sha256_bytes(
+        input_manifest_bytes
+    ) or population["oracle_manifest_sha256"] != _sha256_bytes(oracle_manifest_bytes):
+        raise StructuralValidationError(
+            "population freeze does not bind both manifests"
+        )
+    if (
+        population["approved_protocol_commit"]
+        != public_commitment["approved_protocol_commit"]
+    ):
+        raise StructuralValidationError("protocol commit mismatch across phase records")
+    excluded_ids = {item["case_id"] for item in population["case_exclusions"]}
+    if not excluded_ids <= case_ids:
+        raise StructuralValidationError("population freeze excludes an unknown case")
+    included_ids = sorted(case_ids - excluded_ids)
+    if population["included_case_ids"] != included_ids:
+        raise StructuralValidationError(
+            "included_case_ids do not equal candidates minus exclusions"
+        )
+    population_core = {"included_case_ids": included_ids}
+    if population["population_sha256"] != _jcs_sha256(population_core):
+        raise StructuralValidationError("population digest mismatch")
+    frozen_at = _timestamp(population["frozen_at"])
+    input_revealed_at = _timestamp(population["input_pack_revealed_at"])
+    if frozen_at >= input_revealed_at:
+        raise StructuralValidationError("population must freeze before input reveal")
+    if any(
+        _timestamp(item["recorded_at"]) > frozen_at
+        for item in population["case_exclusions"]
+    ):
+        raise StructuralValidationError(
+            "every exclusion must precede population freeze"
+        )
+    included_cases = [item for item in cases if item["case_id"] in included_ids]
+    included_families = {item["family_id"] for item in included_cases}
+    author_by_family = {
+        item["family_id"]: item["primary_author_id"] for item in authorship["records"]
+    }
+    included_authors = {author_by_family[item] for item in included_families}
+    included_edges = [
+        item for item in graph["edges"] if set(item["family_ids"]) <= included_families
+    ]
+    included_clusters = _graph_components(sorted(included_families), included_edges)
+    if (
+        len(included_cases) < 12
+        or len(included_families) < 4
+        or len(included_authors) < 4
+        or len(included_clusters) < 4
+    ):
+        raise StructuralValidationError(
+            "post-exclusion population is below a protocol floor"
+        )
+    if any(item["implementation_roles"] for item in authorship["records"]):
+        raise StructuralValidationError(
+            "blind-pack authorship records cannot contain implementation roles"
+        )
+
+    population_digest = _sha256_bytes(population_bytes)
+    commitments: list[tuple[dict[str, Any], bytes]] = []
+    for path in output_commitment_paths:
+        data = path.read_bytes()
+        value = parse_strict_json_bytes(data, str(path))
+        _validate_value(
+            "path_output_commitment", value, str(path), registry, validators
+        )
+        commitments.append((value, data))
+    _require_unique((item[0]["path_id"] for item in commitments), "output path_id")
+    model_paths = {item["path_id"] for item in population["models"]}
+    if not {"governed", "retrieval_plus_rules"} <= model_paths:
+        raise StructuralValidationError("required evaluated paths are missing")
+    if {item[0]["path_id"] for item in commitments} != model_paths:
+        raise StructuralValidationError(
+            "output commitments must exactly cover model paths"
+        )
+    for commitment, _ in commitments:
+        if (
+            commitment["experiment_id"] != population["experiment_id"]
+            or commitment["population_freeze_sha256"] != population_digest
+            or commitment["included_case_count"] != len(included_ids)
+            or _timestamp(commitment["committed_at"]) < input_revealed_at
+        ):
+            raise StructuralValidationError(
+                "output commitment does not match frozen run"
+            )
+    commitment_digests = sorted(_sha256_bytes(data) for _, data in commitments)
+
+    reveal_bytes = oracle_reveal_path.read_bytes()
+    reveal = parse_strict_json_bytes(reveal_bytes, str(oracle_reveal_path))
+    _validate_value(
+        "oracle_reveal_record", reveal, str(oracle_reveal_path), registry, validators
+    )
+    if (
+        reveal["experiment_id"] != population["experiment_id"]
+        or reveal["population_freeze_sha256"] != population_digest
+        or reveal["output_commitment_sha256s"] != commitment_digests
+    ):
+        raise StructuralValidationError("oracle reveal does not bind frozen outputs")
+    oracle_revealed_at = _timestamp(reveal["oracle_pack_revealed_at"])
+    if any(
+        _timestamp(commitment["committed_at"]) >= oracle_revealed_at
+        for commitment, _ in commitments
+    ):
+        raise StructuralValidationError(
+            "every output commitment must precede oracle reveal"
+        )
+
+    final = load_strict_json(freeze_reveal_path)
+    _validate_value(
+        "freeze_reveal_record", final, str(freeze_reveal_path), registry, validators
+    )
+    if (
+        final["experiment_id"] != population["experiment_id"]
+        or final["population_freeze_sha256"] != population_digest
+        or final["output_commitment_sha256s"] != commitment_digests
+        or final["oracle_reveal_sha256"] != _sha256_bytes(reveal_bytes)
+        or _timestamp(final["finalized_at"]) < oracle_revealed_at
+    ):
+        raise StructuralValidationError(
+            "final receipt does not bind the ordered phases"
+        )
 
 
 def validate_artifacts(assignments: list[tuple[str, Path]]) -> None:
+    """Validate supplied record shapes and any directly comparable records.
+
+    This partial mode never certifies a sealed experiment. Use
+    :func:`validate_complete_pack` for the closed archive and phase workflow.
+    """
     registry = _registry()
     validators: dict[str, Draft202012Validator] = {}
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -225,19 +1502,11 @@ def validate_artifacts(assignments: list[tuple[str, Path]]) -> None:
         if kind not in SCHEMA_FILES:
             raise StructuralValidationError(f"unknown artifact kind: {kind}")
         value = load_strict_json(path)
-        validator = validators.setdefault(kind, _validator(kind, registry))
-        errors = sorted(validator.iter_errors(value), key=lambda item: list(item.path))
-        if errors:
-            first = errors[0]
-            location = ".".join(str(item) for item in first.absolute_path) or "$"
-            raise StructuralValidationError(f"{path}:{location}: {first.message}")
-        _semantic_validate(kind, value)
+        _validate_value(kind, value, str(path), registry, validators)
         grouped[kind].append(value)
         grouped_paths[kind].append(path)
 
-    _require_unique(
-        (item["case_id"] for item in grouped["case_record"]), "case_id"
-    )
+    _require_unique((item["case_id"] for item in grouped["case_record"]), "case_id")
     _require_unique(
         (item["case_id"] for item in grouped["oracle_record"]), "oracle case_id"
     )
@@ -248,7 +1517,6 @@ def validate_artifacts(assignments: list[tuple[str, Path]]) -> None:
 
     cases = grouped["case_record"]
     oracles = grouped["oracle_record"]
-    authorship = grouped["authorship_attestation"]
     if cases and oracles:
         case_ids = {item["case_id"] for item in cases}
         oracle_ids = {item["case_id"] for item in oracles}
@@ -256,6 +1524,7 @@ def validate_artifacts(assignments: list[tuple[str, Path]]) -> None:
             raise StructuralValidationError(
                 "oracle case IDs must exactly equal input case IDs"
             )
+    authorship = grouped["authorship_attestation"]
     if cases and authorship:
         case_families = {item["family_id"] for item in cases}
         attested_families = {item["family_id"] for item in authorship}
@@ -275,7 +1544,15 @@ def validate_artifacts(assignments: list[tuple[str, Path]]) -> None:
                 "public aggregate_family_count does not equal validated families"
             )
 
-    for singleton_kind in ("public_commitment", "freeze_reveal_record"):
+    for singleton_kind in (
+        "authorship_collection",
+        "freeze_reveal_record",
+        "leakage_review_attestation",
+        "oracle_reveal_record",
+        "population_freeze_record",
+        "public_commitment",
+        "relatedness_graph",
+    ):
         if len(grouped[singleton_kind]) > 1:
             raise StructuralValidationError(
                 f"more than one {singleton_kind} was supplied"
@@ -303,40 +1580,70 @@ def validate_artifacts(assignments: list[tuple[str, Path]]) -> None:
         commitment = commitments[0]
         input_manifest = manifest_by_type.get("sealed_input_pack")
         oracle_manifest = manifest_by_type.get("sealed_oracle_pack")
-        if input_manifest and commitment["sealed_input_pack_sha256"] != input_manifest[
-            "archive_sha256"
-        ]:
+        if (
+            input_manifest
+            and commitment["sealed_input_pack_sha256"]
+            != input_manifest["archive_sha256"]
+        ):
             raise StructuralValidationError(
                 "public commitment input-pack digest does not match manifest"
             )
-        if oracle_manifest and commitment["sealed_oracle_pack_sha256"] != (
-            oracle_manifest["archive_sha256"]
+        if (
+            oracle_manifest
+            and commitment["sealed_oracle_pack_sha256"]
+            != (oracle_manifest["archive_sha256"])
         ):
             raise StructuralValidationError(
                 "public commitment oracle-pack digest does not match manifest"
             )
 
-    freeze_records = grouped["freeze_reveal_record"]
-    if freeze_records and commitments:
-        freeze = freeze_records[0]
-        commitment = commitments[0]
-        commitment_path = grouped_paths["public_commitment"][0]
-        commitment_digest = (
-            "sha256:" + hashlib.sha256(commitment_path.read_bytes()).hexdigest()
-        )
-        if freeze["public_commitment_sha256"] != commitment_digest:
-            raise StructuralValidationError(
-                "freeze record does not bind the exact public commitment bytes"
-            )
-        for field in (
-            "approved_protocol_commit",
-            "sealed_input_pack_sha256",
-            "sealed_oracle_pack_sha256",
+    authorship_collections = grouped["authorship_collection"]
+    graphs = grouped["relatedness_graph"]
+    if authorship_collections and graphs:
+        _validate_authorship_graph(authorship_collections[0], graphs[0])
+
+    population_records = grouped["population_freeze_record"]
+    if population_records and commitments:
+        population = population_records[0]
+        public_path = grouped_paths["public_commitment"][0]
+        if population["public_commitment_sha256"] != _sha256_bytes(
+            public_path.read_bytes()
         ):
-            if freeze[field] != commitment[field]:
-                raise StructuralValidationError(
-                    f"freeze record {field} does not match public commitment"
-                )
+            raise StructuralValidationError(
+                "population freeze does not bind the exact public commitment bytes"
+            )
+        if (
+            population["approved_protocol_commit"]
+            != commitments[0]["approved_protocol_commit"]
+        ):
+            raise StructuralValidationError(
+                "population freeze approved_protocol_commit mismatch"
+            )
+
+    path_commitments = grouped["path_output_commitment"]
+    _require_unique(
+        (item["path_id"] for item in path_commitments), "output commitment path_id"
+    )
+    reveal_records = grouped["oracle_reveal_record"]
+    if reveal_records and path_commitments:
+        expected = sorted(
+            _sha256_bytes(path.read_bytes())
+            for path in grouped_paths["path_output_commitment"]
+        )
+        if reveal_records[0]["output_commitment_sha256s"] != expected:
+            raise StructuralValidationError(
+                "oracle reveal does not bind the supplied output commitments"
+            )
+
+    final_records = grouped["freeze_reveal_record"]
+    if final_records and reveal_records:
+        reveal_path = grouped_paths["oracle_reveal_record"][0]
+        if final_records[0]["oracle_reveal_sha256"] != _sha256_bytes(
+            reveal_path.read_bytes()
+        ):
+            raise StructuralValidationError(
+                "final receipt does not bind the supplied oracle-reveal record"
+            )
 
 
 def _assignment(value: str) -> tuple[str, Path]:
@@ -348,22 +1655,67 @@ def _assignment(value: str) -> tuple[str, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate v0.3.6 artifacts and cross-record structure."
+        description="Validate v0.3.7 record shapes or one complete sealed workflow."
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="mode", required=True)
+    record_parser = subparsers.add_parser(
+        "record", help="validate record shapes; never certifies a complete pack"
+    )
+    record_parser.add_argument(
         "artifacts",
         nargs="+",
         type=_assignment,
         metavar="KIND=PATH",
-        help="artifact kind and JSON path; repeat to validate a complete set",
+        help="artifact kind and JSON path",
+    )
+    complete_parser = subparsers.add_parser(
+        "complete-pack", help="validate exact archives and the ordered sealing phases"
+    )
+    for option in (
+        "public_commitment",
+        "input_archive",
+        "input_manifest",
+        "oracle_archive",
+        "oracle_manifest",
+        "population_freeze",
+        "oracle_reveal",
+        "freeze_reveal",
+    ):
+        complete_parser.add_argument(
+            "--" + option.replace("_", "-"),
+            type=Path,
+            required=True,
+        )
+    complete_parser.add_argument(
+        "--output-commitment",
+        type=Path,
+        action="append",
+        required=True,
+        dest="output_commitments",
     )
     args = parser.parse_args()
     try:
-        validate_artifacts(args.artifacts)
-    except StructuralValidationError as error:
+        if args.mode == "record":
+            validate_artifacts(args.artifacts)
+            print(f"VALID_RECORDS: {len(args.artifacts)} artifact(s)")
+        else:
+            validate_complete_pack(
+                public_commitment_path=args.public_commitment.resolve(),
+                input_archive_path=args.input_archive.resolve(),
+                input_manifest_path=args.input_manifest.resolve(),
+                oracle_archive_path=args.oracle_archive.resolve(),
+                oracle_manifest_path=args.oracle_manifest.resolve(),
+                population_freeze_path=args.population_freeze.resolve(),
+                output_commitment_paths=[
+                    item.resolve() for item in args.output_commitments
+                ],
+                oracle_reveal_path=args.oracle_reveal.resolve(),
+                freeze_reveal_path=args.freeze_reveal.resolve(),
+            )
+            print("VALID_COMPLETE_PACK")
+    except (OSError, StructuralValidationError) as error:
         print(f"INVALID: {error}", file=sys.stderr)
         return 1
-    print(f"VALID: {len(args.artifacts)} artifact(s)")
     return 0
 
 

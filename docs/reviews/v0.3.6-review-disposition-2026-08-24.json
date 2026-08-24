@@ -1,0 +1,38 @@
+{
+  "schema_version": "agent-context-proof-review-disposition-v0.1",
+  "recorded_at": "2026-08-24T23:33:26Z",
+  "subject": {
+    "repository": "https://github.com/heronyogi/agent-context-proof",
+    "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/5",
+    "commit": "903fef2ddd57af7e15f3c972d45b7db2a07b515e",
+    "tree": "4ab2373b26d454085fbb372e54dbf37462a4fcf1",
+    "git_archive_tar_sha256": "856458a3fedeae8e1106e0cb6e29f5b735b015f2168994fd09065d241f875acd"
+  },
+  "independent_review": {
+    "reviewer_type": "ordinary AI collaborator; not an authenticated persona runtime",
+    "outcome": "REQUEST_CHANGES",
+    "public_record": "https://github.com/heronyogi/agent-context-proof/pull/5#issuecomment-5402687048",
+    "completed_local_record_sha256": "bbd9311ee4b28e4fc3b7b0f1d982606117d4c4263a24a31860f29b26069a4435",
+    "blocking_classes": [
+      "ACP-V03-002-R1_DELAYED_NON_TRANSITION_TIME",
+      "ACP-V03-005-R1_PROVENANCE_TOTALITY_AND_COMPLETENESS",
+      "ACP-V03-006-R1_COMPLETE_PACK_AND_PHASE_VALIDATION"
+    ],
+    "repository_or_pull_request_writes_by_reviewer": false,
+    "authority_effect": "review_recommendation_only"
+  },
+  "owner_disposition": {
+    "finding_disposition": "ACCEPT_FINDINGS_AND_PREPARE_NEW_SUCCESSOR",
+    "reviewed_subject_mutation": "PROHIBITED",
+    "successor_version": "v0.3.7",
+    "successor_requires_new_exact_sha_review": true,
+    "case_sealing": "HELD_PENDING_SUCCESSOR_REVIEW",
+    "implementation": "CLOSED",
+    "blind_case_exposure": "PROHIBITED"
+  },
+  "history_preservation": {
+    "v0.3.5_reconciliation": "docs/reviews/v0.3.5-reconciliation-2026-08-24.json",
+    "prior_exact_sha_records_reinterpreted_or_revoked": false,
+    "green_checks_treated_as_approval": false
+  }
+}

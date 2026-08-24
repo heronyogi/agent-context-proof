@@ -107,7 +107,7 @@ drift.
 | --- | --- |
 | `canonicalization` | Parse strict I-JSON with duplicate member names rejected, validate the entry schema, remove only the top-level signature member, and canonicalize the remaining payload with RFC 8785 JCS. |
 | `signature` | Use Ed25519 over the UTF-8 JCS bytes; encode signatures as unpadded base64url and key IDs as sha256:<lowercase hex SHA-256 of the 32 raw public-key bytes>. |
-| `time` | Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); at each timestamp activate external anchors and apply earlier-issued transition effects before authorizing one same-timestamp entry batch, then apply that batch's immediate effects; no entry may authorize another entry issued at the same timestamp. |
+| `time` | Use UTC RFC 3339 timestamps ending in Z and finite half-open validity intervals [not_before, not_after), with not_after required and strictly later than not_before; require issued_at == not_before for claim, delegation, and precedence entries; at each timestamp activate external anchors and apply earlier-issued transition effects before authorizing one same-timestamp entry batch, then apply that batch's immediate effects; no entry may authorize another entry issued at the same timestamp. |
 | `scope` | Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; require every signed entry scope to be component-wise contained by each grant that authorizes it, so an exact field can never expand to *; specificity never creates implicit precedence. |
 | `epoch` | Use non-negative integers comparable only within one lineage; accept only a predecessor-signed successor at predecessor epoch plus one, and let the highest validated effective epoch dominate older lineage entries. |
 | `revocation` | A valid revocation applies at and after effective_at, including to non-revocation records signed earlier; it must be signed by a then-valid authority whose scope grants revoke for the target, and the revocation action remains durable if its signer is later revoked. |
@@ -241,8 +241,10 @@ At each timestamp `t`, the resolver uses this total event order:
 3. Freeze one authorization snapshot and authorize every entry with
    `issued_at == t` against that same snapshot. No entry in this batch may
    introduce authority used by another entry in the batch.
-4. Apply the immediate effects at `t` of entries authorized in step 3 as one
-   order-independent boundary batch.
+4. Apply as one order-independent boundary batch every authorized claim,
+   delegation, or precedence entry (whose required `not_before` equals `t`) and
+   every authorized rotation, revocation, or recovery whose effective boundary
+   equals `t`.
 
 Thus an external anchor whose `not_before` equals an entry's `issued_at` can
 authorize that entry, while a delegation issued at `t` cannot authorize a
@@ -283,10 +285,15 @@ suppresses that rotation, while an independently authorized recovery may still
 replace the frozen compromised head. An unresolved target, dependency, or
 precondition that could alter the decision is `INDETERMINATE`.
 
-For every entry, `issued_at` must be at or before `not_before`. For a delayed
-rotation, revocation, or recovery, `not_before` must be at or before its
-effective boundary, and that boundary must fall inside the entry's validity
-interval. A resolved ordering violation is `INVALID`.
+Every entry and external anchor has a required finite `not_after`, and
+`not_before < not_after`. For claim, delegation, and precedence,
+`issued_at == not_before`; those non-transition records have no pending state.
+For rotation, revocation, and recovery,
+`issued_at <= not_before <= effective_at < not_after`. A transition whose
+effective boundary equals `issued_at` is applied in step 4; a later boundary is
+applied in step 2 and its signer is not reauthorized there. Any resolved
+ordering violation is `INVALID`. These comparisons use parsed UTC instants,
+not lexical timestamp order.
 
 Recovery never creates an unrelated lineage in v0.3. Its predecessor must be
 the current head for `compromised_issuer_id` in `compromised_lineage_id`
@@ -374,6 +381,16 @@ missing requirement is `INDETERMINATE`, while a complete inventory proving
 absence with no unknown requirement is `HOLD`. A validly signed free-form claim
 without a policy mapping is semantically unjudgeable, not negative evidence.
 
+Oracle and result envelopes use a closed relation table. Each output triplet has
+exactly one matching `V` rule. A conformant authority result has exactly the
+matching `OA` rule; `OA1_VALID` also has one or more disposition-compatible
+`OE` rules, while mechanism failure records only `V7` or `V8`. Reason codes must
+be a nonempty subset of the `oracle_record_relations` allowlist for that `V`
+rule and must include at least one code from its required set. Thus a `READY`
+record cannot cite `OA4_UNKNOWN`, `V6_AUTHORITY_UNKNOWN`, or
+`AUTHORITY_INVALID`. The standalone validator applies the same committed maps
+to final oracles, both embedded annotations, adjudications, and result records.
+
 ### Provenance requirements
 
 Provenance is route-specific but never optional for a stage that was reached.
@@ -382,10 +399,11 @@ The rules below are normative and mirrored in the machine protocol.
 | Rule ID | Normative rule |
 | --- | --- |
 | `PV1_REACHED_STAGES` | Record exact paths, record IDs, and digests for every evaluation stage reached; list every stage skipped by an earlier terminal classification in unevaluated_stages. |
-| `PV2_AUTHORITY_CHAIN` | Each decisive authority claim records issuer_id, claim_entry_id, and ordered records from its trust anchor or delegation through the claim, with the RFC 8785 payload SHA-256 for every record. |
+| `PV2_AUTHORITY_CHAIN` | Each decisive authority claim records issuer_id, claim_entry_id, chain_sha256, and ordered records from its trust anchor through the claim, with the RFC 8785 payload SHA-256 for every record. chain_sha256 is SHA-256 of the RFC 8785 JCS object containing exactly issuer_id, claim_entry_id, and records. At least one chain is required whenever authority_status is VALID or CONFLICT. |
 | `PV3_AUTHORITY_DEPENDENCIES` | Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list; no side dependency may be appended to a claim chain. |
 | `PV4_CONFLICT_COVERAGE` | AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid. |
 | `PV5_SHORT_CIRCUIT` | When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance. |
+| `PV6_BUNDLE_COVERAGE` | authority_evaluation_records contains every trust anchor, recovery anchor, and signed entry in the exact authority bundle once, with its recomputed payload digest, classification, and decisive flag; every reported chain or dependency resolves to that closed index, every claim endpoint is decisive, and required dependency types are present. |
 
 The authority bundle itself is recorded by path and byte digest. Within each
 authority chain, `records` are ordered from the trust anchor or delegation to
@@ -407,12 +425,13 @@ contract pins the required fields for the provenance object, authority-chain
 items, authority records, and file records.
 
 Array ordering is canonical. `authority_chains` sort by the Unicode-code-point
-tuple `(issuer_id, claim_entry_id)`. `authority_dependencies` sort by
+tuple `(issuer_id, claim_entry_id, chain_sha256)`. The digest supplies a total
+order for multiple support paths to one claim. `authority_dependencies` sort by
 `(dependency_type, record_id, payload_sha256)`; each dependency's
 `authorization_records` retain semantic order from its authorizing anchor to
 the dependency record, and `decisive_for` sorts by Unicode code point. Contract
 and evidence records sort by `(path, sha256)`. Records inside one authority
-chain retain semantic chain order from anchor or delegation to claim, and
+chain retain semantic chain order from anchor to claim, and
 `unevaluated_stages` retains stage order. Two outputs with identical members in
 a different order are not both canonical.
 
