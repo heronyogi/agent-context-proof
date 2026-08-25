@@ -983,7 +983,7 @@ def _git_output(root: Path, *arguments: str) -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return result.stdout.strip() if result.returncode == 0 else None
+    return result.stdout.rstrip("\r\n") if result.returncode == 0 else None
 
 
 def observe_execution_context(

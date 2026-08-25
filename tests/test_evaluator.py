@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from contextproof.evaluator import (
     IdentityStatus,
     evaluate_context,
     load_identity,
+    observe_execution_context,
     resolve_release_identity,
 )
 from evals.run_live import (
@@ -245,3 +247,33 @@ def test_v02_proof_result_is_bound_to_current_cases_and_trust_root(
 
 def test_cli_discovers_checkout_from_nested_directory() -> None:
     assert discover_project_root(PROJECT_ROOT / "demo" / "repository") == PROJECT_ROOT
+
+
+def test_execution_context_preserves_the_first_dirty_path(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    subprocess.run(("git", "init", "-q", str(repository)), check=True)
+    (repository / "README.md").write_text("original\n", encoding="utf-8")
+    subprocess.run(("git", "-C", str(repository), "add", "README.md"), check=True)
+    subprocess.run(
+        (
+            "git",
+            "-C",
+            str(repository),
+            "-c",
+            "user.name=Context Proof Tests",
+            "-c",
+            "user.email=tests@example.invalid",
+            "commit",
+            "-qm",
+            "Initial fixture",
+        ),
+        check=True,
+    )
+    (repository / "README.md").write_text("modified\n", encoding="utf-8")
+    (repository / "notes.txt").write_text("untracked\n", encoding="utf-8")
+
+    execution = observe_execution_context(repository, environ={})
+
+    assert execution.worktree_state == "dirty"
+    assert execution.dirty_paths == ("README.md", "notes.txt")
