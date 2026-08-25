@@ -1,0 +1,47 @@
+{
+  "schema_version": "agent-context-proof-review-disposition-v0.1",
+  "recorded_at": "2026-08-25T01:36:17Z",
+  "subject": {
+    "repository": "https://github.com/heronyogi/agent-context-proof",
+    "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/8",
+    "commit": "396aa38027e7a605c0864231d9602d0055f5262f",
+    "tree": "c9a8ebe4c4646ab0cb1df4300e386229a8d20f25",
+    "git_archive_tar_sha256": "f3e79afcb88cde2ab5202a6d84b8121a8aaedc675e49444b987f9c35a77116d8"
+  },
+  "independent_review": {
+    "reviewer_type": "ordinary AI collaborator; not an authenticated persona runtime",
+    "outcome": "REQUEST_CHANGES",
+    "public_record": "https://github.com/heronyogi/agent-context-proof/pull/8#issuecomment-5403857379",
+    "completed_local_record_sha256": "359ae86d272959f895ede674479d27e698902e10a6a82d92e6b56ee7587d1762",
+    "completed_local_record_scope_paths_verified": 40,
+    "blocking_classes": [
+      "ACP-V03-014_CLASSIFICATION_ROLE_COHERENCE",
+      "ACP-V03-015_TRUSTED_PROTOCOL_OBJECT_BINDING"
+    ],
+    "nonblocking_observations": [
+      "DECISIVE_FOR_REMOVAL_INTERNALLY_CONSISTENT",
+      "FAILURE_DETAIL_REMOVAL_CLOSED",
+      "EXTREME_NUMBER_INTERFACE_BOUNDED",
+      "DECLARATION_AUTHENTICATION_LIMIT_DISCLOSED"
+    ],
+    "repository_or_pull_request_writes_by_reviewer": false,
+    "authority_effect": "review_recommendation_only"
+  },
+  "owner_disposition": {
+    "finding_disposition": "ACCEPT_FINDINGS_AND_PREPARE_NEW_SUCCESSOR",
+    "reviewed_subject_mutation": "PROHIBITED",
+    "successor_version": "v0.3.10",
+    "successor_requires_new_exact_sha_review": true,
+    "case_sealing": "HELD_PENDING_SUCCESSOR_REVIEW",
+    "implementation": "CLOSED",
+    "blind_case_exposure": "PROHIBITED"
+  },
+  "history_preservation": {
+    "v0.3.5_reconciliation": "docs/reviews/v0.3.5-reconciliation-2026-08-24.json",
+    "v0.3.6_review_disposition": "docs/reviews/v0.3.6-review-disposition-2026-08-24.json",
+    "v0.3.7_review_disposition": "docs/reviews/v0.3.7-review-disposition-2026-08-24.json",
+    "v0.3.8_review_disposition": "docs/reviews/v0.3.8-review-disposition-2026-08-24.json",
+    "prior_exact_sha_records_reinterpreted_or_revoked": false,
+    "green_checks_treated_as_approval": false
+  }
+}

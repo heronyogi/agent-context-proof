@@ -22,6 +22,12 @@ V037_DISPOSITION = (
 V038_DISPOSITION = (
     PROJECT_ROOT / "docs" / "reviews" / "v0.3.8-review-disposition-2026-08-24.json"
 )
+V039_DISPOSITION = (
+    PROJECT_ROOT / "docs" / "reviews" / "v0.3.9-review-disposition-2026-08-24.json"
+)
+V0310_DISPOSITION = (
+    PROJECT_ROOT / "docs" / "reviews" / "v0.3.10-review-disposition-2026-08-24.json"
+)
 CI_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
 LIVE_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "live-eval.yml"
 
@@ -71,7 +77,7 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.9"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.11"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"
@@ -166,6 +172,51 @@ def test_v038_request_changes_is_preserved_for_its_exact_object() -> None:
         "ACP-V03-013_CANONICAL_DEPENDENCY_GRAPH"
     ]
     assert disposition["owner_disposition"]["successor_version"] == "v0.3.9"
+    assert disposition["owner_disposition"]["case_sealing"] == (
+        "HELD_PENDING_SUCCESSOR_REVIEW"
+    )
+    assert disposition["owner_disposition"]["successor_requires_new_exact_sha_review"]
+
+
+def test_v039_request_changes_is_preserved_for_its_exact_object() -> None:
+    disposition = json.loads(V039_DISPOSITION.read_text(encoding="utf-8"))
+    assert disposition["subject"] == {
+        "repository": "https://github.com/heronyogi/agent-context-proof",
+        "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/8",
+        "commit": "396aa38027e7a605c0864231d9602d0055f5262f",
+        "tree": "c9a8ebe4c4646ab0cb1df4300e386229a8d20f25",
+        "git_archive_tar_sha256": (
+            "f3e79afcb88cde2ab5202a6d84b8121a8aaedc675e49444b987f9c35a77116d8"
+        ),
+    }
+    assert disposition["independent_review"]["outcome"] == "REQUEST_CHANGES"
+    assert disposition["independent_review"]["blocking_classes"] == [
+        "ACP-V03-014_CLASSIFICATION_ROLE_COHERENCE",
+        "ACP-V03-015_TRUSTED_PROTOCOL_OBJECT_BINDING",
+    ]
+    assert disposition["owner_disposition"]["successor_version"] == "v0.3.10"
+    assert disposition["owner_disposition"]["case_sealing"] == (
+        "HELD_PENDING_SUCCESSOR_REVIEW"
+    )
+    assert disposition["owner_disposition"]["successor_requires_new_exact_sha_review"]
+
+
+def test_v0310_request_changes_is_preserved_for_its_exact_object() -> None:
+    disposition = json.loads(V0310_DISPOSITION.read_text(encoding="utf-8"))
+    assert disposition["subject"] == {
+        "repository": "https://github.com/heronyogi/agent-context-proof",
+        "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/9",
+        "commit": "7e9ca820f6b0b5e59d7a06fe6632dc909dc226e0",
+        "tree": "8e24e2fa3716af27f4ab10546e23e54dd6d15e3e",
+        "git_archive_tar_sha256": (
+            "8dc0672fbd197635afd9c00705ccf442a259c9e1096fea6748980105f4a0dfef"
+        ),
+    }
+    assert disposition["independent_review"]["outcome"] == "REQUEST_CHANGES"
+    assert disposition["independent_review"]["blocking_classes"] == [
+        "ACP-V03-016_ANNOTATION_PROVENANCE_AND_CLASSIFICATION_CLOSURE"
+    ]
+    assert disposition["owner_disposition"]["successor_version"] == "v0.3.11"
     assert disposition["owner_disposition"]["case_sealing"] == (
         "HELD_PENDING_SUCCESSOR_REVIEW"
     )

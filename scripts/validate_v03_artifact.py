@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate v0.3.9 protocol artifacts without model judgment."""
+"""Validate v0.3.11 protocol artifacts without model judgment."""
 
 from __future__ import annotations
 
@@ -120,6 +120,9 @@ V_RULE_ALLOWED_REASONS = {
 }
 
 SCHEMA_FILES = {
+    "approved_protocol_manifest": (
+        DOCS / "approved-protocol-manifest.v0.3.schema.json"
+    ),
     "authorship_attestation": DOCS / "authorship-attestation.v0.3.schema.json",
     "authorship_collection": DOCS / "authorship-collection.v0.3.schema.json",
     "authority_bundle": DOCS / "authority-ledger-bundle.v0.3.schema.json",
@@ -144,6 +147,17 @@ REGISTRY_FILES = [
     DOCS / "protocol-artifact-defs.v0.3.schema.json",
     DOCS / "authority-ledger-entry.v0.3.schema.json",
 ]
+APPROVED_PROTOCOL_PATHS = sorted(
+    {
+        "docs/case-authoring.v0.3.md",
+        "docs/proof-protocol.v0.3.json",
+        "docs/proof-protocol.v0.3.md",
+        "docs/v0.3-review-guide.md",
+        "scripts/validate_v03_artifact.py",
+        *(path.relative_to(PROJECT_ROOT).as_posix() for path in SCHEMA_FILES.values()),
+        *(path.relative_to(PROJECT_ROOT).as_posix() for path in REGISTRY_FILES),
+    }
+)
 
 
 class StructuralValidationError(ValueError):
@@ -684,6 +698,11 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
                 raise StructuralValidationError(
                     f"lineage head tuple mismatch: {head['entry_id']}"
                 )
+    elif kind == "approved_protocol_manifest":
+        files = value["files"]
+        paths = [item["path"] for item in files]
+        _require_unique(paths, "approved protocol manifest path")
+        _require_sorted(paths, sorted(paths), "approved protocol manifest files")
     elif kind in {"pack_manifest", "path_artifact_manifest"}:
         entries = value["entries"]
         paths = [item["path"] for item in entries]
@@ -770,7 +789,7 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
         )
         if value["case_exclusions"]:
             raise StructuralValidationError(
-                "a committed v0.3.9 candidate pack cannot exclude individual cases"
+                "a committed v0.3.11 candidate pack cannot exclude individual cases"
             )
         _require_sorted(
             value["included_case_ids"],
@@ -895,7 +914,7 @@ def _load_canonical_ustar(path: Path) -> tuple[bytes, dict[str, bytes]]:
 def _verify_manifest(
     manifest: dict[str, Any], archive_bytes: bytes, files: dict[str, bytes]
 ) -> None:
-    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.9":
+    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.11":
         raise StructuralValidationError("unsupported archive format")
     if manifest["archive_sha256"] != _sha256_bytes(archive_bytes):
         raise StructuralValidationError("manifest archive digest mismatch")
@@ -1008,6 +1027,7 @@ def _canonical_authorization_path(
     target_id: str,
     records: dict[str, dict[str, Any]],
     decisive_ids: set[str],
+    classifications: dict[str, str],
     case_id: str,
 ) -> list[str]:
     """Derive one exact signer-introduction path to a decisive dependency."""
@@ -1032,6 +1052,7 @@ def _canonical_authorization_path(
             if (
                 parent_id == record_id
                 or parent_id not in decisive_ids
+                or classifications[parent_id] != "VALID"
                 or _introduced_identity(parent) != signer
             ):
                 continue
@@ -1110,17 +1131,41 @@ def _validate_case_provenance(
         )
     records, digests = _record_index(authority_bundle)
     evaluation_records = provenance["authority_evaluation_records"]
-    evaluation_index = {
+    evaluation_digests = {
         item["record_id"]: item["payload_sha256"] for item in evaluation_records
     }
-    if evaluation_index != digests:
+    if evaluation_digests != digests:
         raise StructuralValidationError(
             f"{case['case_id']}: authority_evaluation_records must cover "
             "the exact bundle"
         )
+    evaluation_index = {item["record_id"]: item for item in evaluation_records}
+    classifications = {
+        record_id: item["classification"]
+        for record_id, item in evaluation_index.items()
+    }
     decisive_ids = {
         item["record_id"] for item in evaluation_records if item["decisive"]
     }
+    decisive_classifications = {classifications[item] for item in decisive_ids}
+    if "NONMATCHING" in decisive_classifications:
+        raise StructuralValidationError(
+            f"{case['case_id']}: NONMATCHING authority records cannot be decisive"
+        )
+    mechanism_status = oracle["oracle"]["mechanism_status"]
+    authority_status = oracle["oracle"]["authority_status"]
+    if mechanism_status == "CONFORMANT":
+        has_unresolved = "UNRESOLVED" in decisive_classifications
+        if (authority_status == "INDETERMINATE") != has_unresolved:
+            raise StructuralValidationError(
+                f"{case['case_id']}: decisive UNRESOLVED records and authority "
+                "INDETERMINATE must occur together"
+            )
+        if authority_status == "INVALID" and "INVALID" not in decisive_classifications:
+            raise StructuralValidationError(
+                f"{case['case_id']}: INVALID authority requires a decisive INVALID "
+                "record"
+            )
     for chain in provenance["authority_chains"]:
         chain_ids = [item["record_id"] for item in chain["records"]]
         _require_unique(chain_ids, f"{case['case_id']} chain record_id")
@@ -1204,6 +1249,11 @@ def _validate_case_provenance(
                 raise StructuralValidationError(
                     f"{case['case_id']}: authority chain contains a nondecisive record"
                 )
+            if classifications[record_id] != "VALID":
+                raise StructuralValidationError(
+                    f"{case['case_id']}: authority chain support must be classified "
+                    f"VALID: {record_id}"
+                )
 
     required_dependencies: set[tuple[str, str]] = set()
     for record_id in decisive_ids:
@@ -1273,6 +1323,7 @@ def _validate_case_provenance(
             record_id,
             records,
             decisive_ids,
+            classifications,
             case["case_id"],
         )
         if authorization_ids != expected_authorization_ids:
@@ -1448,8 +1499,69 @@ def _load_path_artifacts(
     return artifact_sets
 
 
+def _validate_approved_protocol_manifest(
+    *,
+    manifest_path: Path,
+    expected_manifest_sha256: str,
+    expected_commit: str,
+    registry: Registry,
+    validators: dict[str, Draft202012Validator],
+) -> None:
+    if (
+        len(expected_manifest_sha256) != 71
+        or not expected_manifest_sha256.startswith("sha256:")
+        or any(
+            character not in "0123456789abcdef"
+            for character in expected_manifest_sha256[7:]
+        )
+    ):
+        raise StructuralValidationError(
+            "expected approved protocol manifest digest must use sha256:<64 "
+            "lowercase hex>"
+        )
+    manifest_bytes = manifest_path.read_bytes()
+    if _sha256_bytes(manifest_bytes) != expected_manifest_sha256:
+        raise StructuralValidationError(
+            "approved protocol manifest does not match its trusted external digest"
+        )
+    manifest = parse_strict_json_bytes(manifest_bytes, str(manifest_path))
+    _validate_value(
+        "approved_protocol_manifest",
+        manifest,
+        str(manifest_path),
+        registry,
+        validators,
+    )
+    if manifest["approved_protocol_commit"] != expected_commit:
+        raise StructuralValidationError(
+            "approved protocol manifest commit does not match the trusted expected "
+            "approval object"
+        )
+    entries = {item["path"]: item["sha256"] for item in manifest["files"]}
+    if sorted(entries) != APPROVED_PROTOCOL_PATHS:
+        difference = sorted(set(entries) ^ set(APPROVED_PROTOCOL_PATHS))
+        raise StructuralValidationError(
+            f"approved protocol manifest does not cover the exact governed file "
+            f"set: {difference}"
+        )
+    for relative_path, expected_digest in entries.items():
+        protocol_path = PROJECT_ROOT / relative_path
+        if protocol_path.is_symlink() or not protocol_path.is_file():
+            raise StructuralValidationError(
+                f"approved protocol file is missing, non-regular, or a symlink: "
+                f"{relative_path}"
+            )
+        if _sha256_bytes(protocol_path.read_bytes()) != expected_digest:
+            raise StructuralValidationError(
+                f"approved protocol file digest mismatch: {relative_path}"
+            )
+
+
 def validate_complete_pack(
     *,
+    expected_approved_protocol_commit: str,
+    approved_protocol_manifest_path: Path,
+    expected_approved_protocol_manifest_sha256: str,
     public_commitment_path: Path,
     input_archive_path: Path,
     input_manifest_path: Path,
@@ -1464,8 +1576,23 @@ def validate_complete_pack(
     oracle_reveal_path: Path,
     freeze_reveal_path: Path,
 ) -> None:
+    if len(expected_approved_protocol_commit) != 40 or any(
+        character not in "0123456789abcdef"
+        for character in expected_approved_protocol_commit
+    ):
+        raise StructuralValidationError(
+            "expected approved protocol commit must be 40 lowercase hexadecimal "
+            "characters"
+        )
     registry = _registry()
     validators: dict[str, Draft202012Validator] = {}
+    _validate_approved_protocol_manifest(
+        manifest_path=approved_protocol_manifest_path,
+        expected_manifest_sha256=expected_approved_protocol_manifest_sha256,
+        expected_commit=expected_approved_protocol_commit,
+        registry=registry,
+        validators=validators,
+    )
 
     public_bytes = public_commitment_path.read_bytes()
     public_commitment = parse_strict_json_bytes(
@@ -1486,6 +1613,13 @@ def validate_complete_pack(
         registry,
         validators,
     )
+    if public_commitment["approved_protocol_commit"] != (
+        expected_approved_protocol_commit
+    ):
+        raise StructuralValidationError(
+            "public commitment protocol commit does not match the trusted expected "
+            "approval object"
+        )
     _validate_value(
         "pack_manifest",
         input_manifest,
@@ -1687,14 +1821,21 @@ def validate_complete_pack(
         ):
             raise StructuralValidationError("pack manifest aggregate counts mismatch")
     for case in cases:
-        _validate_case_provenance(
-            case,
-            oracles[case["case_id"]],
-            input_files,
-            permitted_by_case[case["case_id"]],
-            registry,
-            validators,
-        )
+        oracle_record = oracles[case["case_id"]]
+        provenance_payloads = [
+            oracle_record["oracle"],
+            *(item["annotation"] for item in oracle_record["annotations"]),
+            oracle_record["adjudication"]["oracle"],
+        ]
+        for payload in provenance_payloads:
+            _validate_case_provenance(
+                case,
+                {"oracle": payload},
+                input_files,
+                permitted_by_case[case["case_id"]],
+                registry,
+                validators,
+            )
 
     population_bytes = population_freeze_path.read_bytes()
     population = parse_strict_json_bytes(population_bytes, str(population_freeze_path))
@@ -1720,6 +1861,11 @@ def validate_complete_pack(
         != public_commitment["approved_protocol_commit"]
     ):
         raise StructuralValidationError("protocol commit mismatch across phase records")
+    if population["approved_protocol_commit"] != expected_approved_protocol_commit:
+        raise StructuralValidationError(
+            "population protocol commit does not match the trusted expected approval "
+            "object"
+        )
     if population["case_exclusions"]:
         raise StructuralValidationError(
             "a committed candidate defect invalidates the whole experiment"
@@ -2146,7 +2292,7 @@ def _assignment(value: str) -> tuple[str, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate v0.3.9 record shapes or one complete sealed workflow."
+        description="Validate v0.3.11 record shapes or one complete sealed workflow."
     )
     subparsers = parser.add_subparsers(dest="mode", required=True)
     record_parser = subparsers.add_parser(
@@ -2161,6 +2307,25 @@ def main() -> int:
     )
     complete_parser = subparsers.add_parser(
         "complete-pack", help="validate exact archives and the ordered sealing phases"
+    )
+    complete_parser.add_argument(
+        "--expected-approved-protocol-commit",
+        required=True,
+        help=(
+            "trusted exact 40-hex protocol commit from the external owner/review "
+            "decision"
+        ),
+    )
+    complete_parser.add_argument(
+        "--approved-protocol-manifest",
+        type=Path,
+        required=True,
+        help="content-addressed manifest for every governed protocol byte",
+    )
+    complete_parser.add_argument(
+        "--expected-approved-protocol-manifest-sha256",
+        required=True,
+        help="trusted external sha256:<64 lowercase hex> manifest digest",
     )
     for option in (
         "public_commitment",
@@ -2204,6 +2369,15 @@ def main() -> int:
             print(f"VALID_RECORDS: {len(args.artifacts)} artifact(s)")
         else:
             validate_complete_pack(
+                expected_approved_protocol_commit=(
+                    args.expected_approved_protocol_commit
+                ),
+                approved_protocol_manifest_path=(
+                    args.approved_protocol_manifest.resolve()
+                ),
+                expected_approved_protocol_manifest_sha256=(
+                    args.expected_approved_protocol_manifest_sha256
+                ),
                 public_commitment_path=args.public_commitment.resolve(),
                 input_archive_path=args.input_archive.resolve(),
                 input_manifest_path=args.input_manifest.resolve(),

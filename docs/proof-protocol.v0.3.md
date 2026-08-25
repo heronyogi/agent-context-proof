@@ -404,6 +404,8 @@ The rules below are normative and mirrored in the machine protocol.
 | `PV4_CONFLICT_COVERAGE` | AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid. |
 | `PV5_SHORT_CIRCUIT` | When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance. |
 | `PV6_BUNDLE_COVERAGE` | authority_evaluation_records contains every trust anchor, recovery anchor, and signed entry in the exact authority bundle once, with its recomputed payload digest, classification, and decisive flag; every reported chain or dependency resolves to that closed index, every claim endpoint is decisive, and required dependency types are present. |
+| `PV7_CLASSIFICATION_COHERENCE` | `NONMATCHING` records are never decisive. Every record on an `authority_chain` and every non-target signer-introduction record in a dependency authorization path is classified `VALID`. For a `CONFORMANT` mechanism, decisive `UNRESOLVED` records occur if and only if authority is `INDETERMINATE`, and `INVALID` authority requires at least one decisive `INVALID` record. |
+| `PV8_ANNOTATION_PROVENANCE_CLOSURE` | Complete-pack validation applies PV1-PV7 independently to the final oracle, both embedded annotations, the adjudicated oracle payload, and every `COMPLETE` result. Annotation disagreement may select `RULE_APPLICATION`; it never relaxes input, digest, classification, decisiveness, chain, dependency, authorization-path, or status-route validation for either annotation. |
 
 The authority bundle itself is recorded by path and byte digest. Within each
 authority chain, `records` are ordered from the trust anchor or delegation to
@@ -422,6 +424,21 @@ path record is decisive, and the dependency collection equals the complete
 derived decisive set. No per-claim `decisive_for` edge is encoded; every listed
 dependency is globally decisive for the reported authority classification, and
 the protocol makes no finer causal-attribution claim.
+
+Classification is part of the same closed relation, not commentary beside the
+graph. A record classified `NONMATCHING` cannot be decisive. Every claim-chain
+record is `VALID`, as is every signer-introduction prefix before a dependency
+target. A dependency target may itself be `VALID`, `INVALID`, or `UNRESOLVED`
+because its validity can be the fact that determines the outcome. When the
+mechanism is `CONFORMANT`, any decisive `UNRESOLVED` record forces authority to
+`INDETERMINATE`, and that authority status requires such a record. An
+`INVALID` authority result requires at least one decisive `INVALID` record.
+
+The final oracle, both embedded annotations, the adjudicated oracle payload,
+and every `COMPLETE` result independently satisfy this entire input-bound
+relation. `RULE_APPLICATION` permits annotation outputs to disagree before
+adjudication; it does not permit either annotation to cite a nonexistent input,
+an incorrect digest, or an incoherent classification or provenance graph.
 
 The claim chain is a different, lineage-oriented structure. It follows connected
 delegation and rotation signer introductions plus recovery predecessor links
@@ -552,7 +569,15 @@ path's output commitment.
 The complete-pack validator recomputes all four archive and manifest digests,
 requires exact population/path/repeat coverage, resolves provenance for every
 complete result against permitted case inputs, and verifies the ordered phase
-bindings. Structural validity is not a pass claim. A typed governed failure or
+bindings. The caller must also supply the exact approved protocol commit from
+the external object-bound owner/review decision; the validator rejects a pack
+whose public commitment or population freeze names any other commit. A commit
+self-asserted only inside the pack is not trusted input. The same decision
+supplies the SHA-256 of an external approved-protocol manifest covering the
+exact governing protocol, schema, review-guide, and validator files. The
+validator requires that closed file set and recomputes every byte digest, so an
+unapproved checkout cannot borrow an approved commit label. Structural validity
+is not a pass claim. A typed governed failure or
 unequal governed result across repeats remains visible and makes the pass
 conditions false; comparator failures remain visible coverage failures.
 
