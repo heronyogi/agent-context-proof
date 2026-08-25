@@ -196,7 +196,7 @@ python scripts/validate_v03_artifact.py complete-pack \
 ```
 
 The sealed packs and every per-path result and trace collection are uncompressed
-`USTAR_CANONICAL_V0.3.8` archives. Members are Unicode-code-point sorted regular
+`USTAR_CANONICAL_V0.3.9` archives. Members are Unicode-code-point sorted regular
 files only, with uid/gid 0, empty owner names, mtime 0, mode 0644, no PAX fields,
 safe relative POSIX paths, and exact external manifest coverage. Result members
 use `results/<path_id>/<case_id>/<repeat_index>.json`; trace members use
@@ -215,7 +215,7 @@ Each record in the sealed input pack contains:
 
 ```json
 {
-  "schema_version": "agent-context-proof-case-v0.3.8",
+  "schema_version": "agent-context-proof-case-v0.3.9",
   "case_id": "blind_example_001",
   "family_id": "authority_rotation",
   "split": "blind_validation",
@@ -236,7 +236,7 @@ The matching sealed record contains an oracle payload of this shape:
 
 ```json
 {
-  "schema_version": "agent-context-proof-oracle-v0.3.8",
+  "schema_version": "agent-context-proof-oracle-v0.3.9",
   "case_id": "blind_example_001",
   "case_coordinate": {
     "organization": "org:orion",
@@ -325,8 +325,7 @@ The matching sealed record contains an oracle payload of this shape:
               "record_id": "anchor:release-east",
               "payload_sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
             }
-          ],
-          "decisive_for": ["entry:claim-owner-east"]
+          ]
         },
         {
           "dependency_type": "identity_introduction",
@@ -337,8 +336,7 @@ The matching sealed record contains an oracle payload of this shape:
               "record_id": "anchor:release-west",
               "payload_sha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
             }
-          ],
-          "decisive_for": ["entry:claim-owner-west"]
+          ]
         }
       ],
       "contract_records": [],
@@ -362,10 +360,12 @@ chain_sha256)` tuple using Unicode code-point order.
 entry in the exact authority bundle once, with its recomputed payload digest,
 classification, and decisiveness; it cannot silently omit an inconvenient
 record. Authority dependencies are sorted by `(dependency_type, record_id,
-payload_sha256)`; their authorization records retain anchor-to-dependency
-semantic order and `decisive_for` is Unicode-code-point sorted. Contract and
-evidence records are sorted by `(path, sha256)`; records inside one authority
-chain retain anchor-to-claim semantic order.
+payload_sha256)`; their authorization records retain the unique canonical
+signer-authorization order from the correct ordinary or recovery anchor to the
+dependency. Per-claim `decisive_for` edges are intentionally absent because the
+structural validator does not claim to derive that finer causal attribution.
+Contract and evidence records are sorted by `(path, sha256)`; records inside one
+authority chain retain anchor-to-claim semantic order.
 
 ## Oracle labeling and disagreement
 
@@ -373,7 +373,7 @@ At least two eligible annotators who did not implement either evaluated
 resolver independently apply the committed oracle-classification tables. Each
 annotation records the three output fields, the applicable `OA`, `OE`, and `V`
 rule IDs, the complete case coordinate, validation time, decisive provenance,
-and a deterministic rationale. The v0.3.8 record profile embeds exactly two
+and a deterministic rationale. The v0.3.9 record profile embeds exactly two
 full annotations in the sealed
 oracle record with a non-cryptographic declaration. An `OE` rule is required
 only after `OA1_VALID`; mechanism failure instead records only `V7` or `V8`.

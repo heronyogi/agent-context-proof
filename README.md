@@ -15,8 +15,8 @@ source, production data, or internal names are included.
 | Goal | Read |
 | --- | --- |
 | Understand the current claim and its limits | This README and [`docs/proof-protocol.md`](docs/proof-protocol.md) |
-| Review the v0.3.8 protocol successor | [`docs/v0.3-review-guide.md`](docs/v0.3-review-guide.md) |
-| Inspect the exact review history | [`v0.3.5 reconciliation`](docs/reviews/v0.3.5-reconciliation-2026-08-24.json), [`v0.3.6 disposition`](docs/reviews/v0.3.6-review-disposition-2026-08-24.json), and [`v0.3.7 disposition`](docs/reviews/v0.3.7-review-disposition-2026-08-24.json) |
+| Review the v0.3.9 protocol successor | [`docs/v0.3-review-guide.md`](docs/v0.3-review-guide.md) |
+| Inspect the exact review history | [`v0.3.5 reconciliation`](docs/reviews/v0.3.5-reconciliation-2026-08-24.json), [`v0.3.6 disposition`](docs/reviews/v0.3.6-review-disposition-2026-08-24.json), [`v0.3.7 disposition`](docs/reviews/v0.3.7-review-disposition-2026-08-24.json), and [`v0.3.8 disposition`](docs/reviews/v0.3.8-review-disposition-2026-08-24.json) |
 | Inspect the machine contract and strict schemas | [`docs/proof-protocol.v0.3.json`](docs/proof-protocol.v0.3.json) and [`docs/case-authoring.v0.3.md`](docs/case-authoring.v0.3.md) |
 | Reproduce the approved v0.2.2 result | [Reproduction instructions](#reproduce-the-deterministic-proof) |
 | Understand federation boundaries | [`SYSTEM.md`](SYSTEM.md), [`CONTRACTS.md`](CONTRACTS.md), and [`federation/fet-001/`](federation/fet-001/) |
@@ -50,12 +50,14 @@ reproducible [Ed25519/JCS reference vectors](tests/fixtures/authority-ledger.v0.
 The vectors contain intentionally public, test-only private seeds for
 conformance testing. They are not production authority data or credentials.
 
-The v0.3.8 successor carries forward the earlier authority and sealing-workflow
-corrections, then addresses the six blockers found in the exact-object v0.3.7
-review: closed result/trace matrices, one canonical authority-dependency
-representation, zero case exclusions after candidate-pack commitment, exact
-oracle-adjudication states, evidence-bound relatedness edges, and one
-lexical-form-independent safe-integer domain. Sixteen strict
+The v0.3.9 successor carries forward the earlier authority and sealing-workflow
+corrections, then addresses the remaining blocker found in the exact-object
+v0.3.8 review: dependency authorization paths now derive from full signer
+identity tuples and the correct ordinary or recovery anchor, dependency types
+must match target kinds, and the dependency collection must equal the complete
+decisive set. The schema intentionally removes unverifiable per-claim
+`decisive_for` edges. It also removes an unbound failure-detail digest and makes
+extreme numeric forms use the same bounded invalid interface. Sixteen strict
 experiment-artifact schemas and
 [`scripts/validate_v03_artifact.py`](scripts/validate_v03_artifact.py) provide
 separate record-shape and closed complete-pack validation. The complete mode

@@ -19,6 +19,9 @@ V036_DISPOSITION = (
 V037_DISPOSITION = (
     PROJECT_ROOT / "docs" / "reviews" / "v0.3.7-review-disposition-2026-08-24.json"
 )
+V038_DISPOSITION = (
+    PROJECT_ROOT / "docs" / "reviews" / "v0.3.8-review-disposition-2026-08-24.json"
+)
 CI_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
 LIVE_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "live-eval.yml"
 
@@ -68,7 +71,7 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.8"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.9"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"
@@ -141,6 +144,28 @@ def test_v037_request_changes_is_preserved_for_its_exact_object() -> None:
         )
     ]
     assert disposition["owner_disposition"]["successor_version"] == "v0.3.8"
+    assert disposition["owner_disposition"]["case_sealing"] == (
+        "HELD_PENDING_SUCCESSOR_REVIEW"
+    )
+    assert disposition["owner_disposition"]["successor_requires_new_exact_sha_review"]
+
+
+def test_v038_request_changes_is_preserved_for_its_exact_object() -> None:
+    disposition = json.loads(V038_DISPOSITION.read_text(encoding="utf-8"))
+    assert disposition["subject"] == {
+        "repository": "https://github.com/heronyogi/agent-context-proof",
+        "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/7",
+        "commit": "6689088e71a00af969c040b22dbc45063596c6fe",
+        "tree": "b101d471f45bd576635f11497d5f55e15717ed4d",
+        "git_archive_tar_sha256": (
+            "4a9149c61ca5578bda0d03f370d4cc26f5ebfe86cbc90f96340a5f7a6da379dd"
+        ),
+    }
+    assert disposition["independent_review"]["outcome"] == "REQUEST_CHANGES"
+    assert disposition["independent_review"]["blocking_classes"] == [
+        "ACP-V03-013_CANONICAL_DEPENDENCY_GRAPH"
+    ]
+    assert disposition["owner_disposition"]["successor_version"] == "v0.3.9"
     assert disposition["owner_disposition"]["case_sealing"] == (
         "HELD_PENDING_SUCCESSOR_REVIEW"
     )
@@ -429,10 +454,10 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain() -> No
             "payload_sha256)"
         ),
         "authorization_records_within_dependency": (
-            "semantic_chain_order_from_authorizing_anchor_to_dependency_record"
+            "unique_canonical_signer_introduction_path_from_correct_anchor_to_"
+            "dependency_record"
         ),
         "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
-        "decisive_for_within_dependency": "ascending_unicode_code_point",
         "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
         "records_within_authority_chain": ("semantic_chain_order_from_anchor_to_claim"),
         "unevaluated_stages": "stage_order_suffix",
@@ -494,7 +519,6 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain() -> No
             dependency["dependency_type"]
             in provenance_contract["authority_dependency_types"]
         )
-        assert dependency["decisive_for"] == sorted(dependency["decisive_for"])
         assert dependency["authorization_records"]
 
 

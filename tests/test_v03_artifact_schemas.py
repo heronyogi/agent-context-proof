@@ -56,7 +56,6 @@ def _provenance(dependency_type: str = "identity_introduction") -> dict[str, obj
             "authorization_records": [
                 {"record_id": "anchor:root", "payload_sha256": ONE}
             ],
-            "decisive_for": ["entry:claim"],
         }
     ]
     if dependency_type != "identity_introduction":
@@ -72,7 +71,6 @@ def _provenance(dependency_type: str = "identity_introduction") -> dict[str, obj
                         "payload_sha256": THREE,
                     },
                 ],
-                "decisive_for": ["entry:claim"],
             }
         )
     chain = {
@@ -111,7 +109,7 @@ def _provenance(dependency_type: str = "identity_introduction") -> dict[str, obj
 
 def _case(case_id: str, family_id: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-case-v0.3.8",
+        "schema_version": "agent-context-proof-case-v0.3.9",
         "case_id": case_id,
         "family_id": family_id,
         "split": "blind_validation",
@@ -140,7 +138,7 @@ def _oracle(case_id: str, dependency_type: str = "identity_introduction") -> dic
     }
     rationale = "The committed rules produce one deterministic result."
     return {
-        "schema_version": "agent-context-proof-oracle-v0.3.8",
+        "schema_version": "agent-context-proof-oracle-v0.3.9",
         "case_id": case_id,
         "case_coordinate": deepcopy(COORDINATE),
         "validation_time": NOW,
@@ -181,7 +179,7 @@ def _oracle(case_id: str, dependency_type: str = "identity_introduction") -> dic
 
 def _result(case_id: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-result-v0.3.8",
+        "schema_version": "agent-context-proof-result-v0.3.9",
         "case_id": case_id,
         "path_id": "governed",
         "repeat_index": 0,
@@ -196,7 +194,7 @@ def _result(case_id: str) -> dict[str, object]:
 
 def _authorship(family_id: str, author: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-authorship-v0.3.8",
+        "schema_version": "agent-context-proof-authorship-v0.3.9",
         "family_id": family_id,
         "primary_author_id": author,
         "coauthor_ids": [],
@@ -211,28 +209,28 @@ def _authorship(family_id: str, author: str) -> dict[str, object]:
 
 def _schema_versions() -> dict[str, str]:
     return {
-        "authorship_attestation": "agent-context-proof-authorship-v0.3.8",
-        "authorship_collection": "agent-context-proof-authorship-collection-v0.3.8",
-        "case_record": "agent-context-proof-case-v0.3.8",
-        "freeze_reveal_record": "agent-context-proof-freeze-reveal-v0.3.8",
-        "leakage_review_attestation": ("agent-context-proof-leakage-review-v0.3.8"),
-        "oracle_record": "agent-context-proof-oracle-v0.3.8",
-        "oracle_reveal_record": "agent-context-proof-oracle-reveal-v0.3.8",
-        "pack_manifest": "agent-context-proof-pack-manifest-v0.3.8",
-        "path_artifact_manifest": ("agent-context-proof-path-artifact-manifest-v0.3.8"),
-        "path_output_commitment": ("agent-context-proof-path-output-commitment-v0.3.8"),
-        "path_run_record": "agent-context-proof-path-run-v0.3.8",
-        "population_freeze_record": ("agent-context-proof-population-freeze-v0.3.8"),
-        "public_commitment": "agent-context-proof-public-commitment-v0.3.8",
-        "relatedness_graph": "agent-context-proof-relatedness-graph-v0.3.8",
-        "result_record": "agent-context-proof-result-v0.3.8",
-        "trace_record": "agent-context-proof-trace-v0.3.8",
+        "authorship_attestation": "agent-context-proof-authorship-v0.3.9",
+        "authorship_collection": "agent-context-proof-authorship-collection-v0.3.9",
+        "case_record": "agent-context-proof-case-v0.3.9",
+        "freeze_reveal_record": "agent-context-proof-freeze-reveal-v0.3.9",
+        "leakage_review_attestation": ("agent-context-proof-leakage-review-v0.3.9"),
+        "oracle_record": "agent-context-proof-oracle-v0.3.9",
+        "oracle_reveal_record": "agent-context-proof-oracle-reveal-v0.3.9",
+        "pack_manifest": "agent-context-proof-pack-manifest-v0.3.9",
+        "path_artifact_manifest": ("agent-context-proof-path-artifact-manifest-v0.3.9"),
+        "path_output_commitment": ("agent-context-proof-path-output-commitment-v0.3.9"),
+        "path_run_record": "agent-context-proof-path-run-v0.3.9",
+        "population_freeze_record": ("agent-context-proof-population-freeze-v0.3.9"),
+        "public_commitment": "agent-context-proof-public-commitment-v0.3.9",
+        "relatedness_graph": "agent-context-proof-relatedness-graph-v0.3.9",
+        "result_record": "agent-context-proof-result-v0.3.9",
+        "trace_record": "agent-context-proof-trace-v0.3.9",
     }
 
 
 def _public_commitment() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-public-commitment-v0.3.8",
+        "schema_version": "agent-context-proof-public-commitment-v0.3.9",
         "approved_protocol_commit": COMMIT,
         "schema_versions": _schema_versions(),
         "aggregate_case_count": 12,
@@ -248,9 +246,9 @@ def _public_commitment() -> dict[str, object]:
 def _pack(pack_type: str, digest: str) -> dict[str, object]:
     prefix = "cases" if pack_type == "sealed_input_pack" else "oracle"
     return {
-        "schema_version": "agent-context-proof-pack-manifest-v0.3.8",
+        "schema_version": "agent-context-proof-pack-manifest-v0.3.9",
         "pack_type": pack_type,
-        "archive_format": "USTAR_CANONICAL_V0.3.8",
+        "archive_format": "USTAR_CANONICAL_V0.3.9",
         "archive_sha256": digest,
         "case_count": 12,
         "family_count": 4,
@@ -260,7 +258,7 @@ def _pack(pack_type: str, digest: str) -> dict[str, object]:
 
 def _leakage() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-leakage-review-v0.3.8",
+        "schema_version": "agent-context-proof-leakage-review-v0.3.9",
         "input_pack_sha256": ONE,
         "randomized_input_pack_sha256": TWO,
         "reviewer_id": "reviewer:one",
@@ -286,7 +284,7 @@ def _leakage() -> dict[str, object]:
 
 def _freeze() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-freeze-reveal-v0.3.8",
+        "schema_version": "agent-context-proof-freeze-reveal-v0.3.9",
         "experiment_id": "experiment:v03",
         "population_freeze_sha256": ZERO,
         "output_commitment_sha256s": [ONE, TWO],
@@ -297,7 +295,7 @@ def _freeze() -> dict[str, object]:
 
 def _authorship_collection() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-authorship-collection-v0.3.8",
+        "schema_version": "agent-context-proof-authorship-collection-v0.3.9",
         "records": [
             _authorship(f"family:{index}", f"author:{index}") for index in range(4)
         ],
@@ -307,7 +305,7 @@ def _authorship_collection() -> dict[str, object]:
 def _relatedness_graph() -> dict[str, object]:
     family_ids = [f"family:{index}" for index in range(4)]
     return {
-        "schema_version": "agent-context-proof-relatedness-graph-v0.3.8",
+        "schema_version": "agent-context-proof-relatedness-graph-v0.3.9",
         "family_ids": family_ids,
         "edges": [],
         "clusters": [
@@ -326,7 +324,7 @@ def _population_freeze() -> dict[str, object]:
         ).hexdigest()
     )
     return {
-        "schema_version": "agent-context-proof-population-freeze-v0.3.8",
+        "schema_version": "agent-context-proof-population-freeze-v0.3.9",
         "experiment_id": "experiment:v03",
         "approved_protocol_commit": COMMIT,
         "public_commitment_sha256": ZERO,
@@ -363,7 +361,7 @@ def _population_freeze() -> dict[str, object]:
 
 def _path_output_commitment(path_id: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-path-output-commitment-v0.3.8",
+        "schema_version": "agent-context-proof-path-output-commitment-v0.3.9",
         "experiment_id": "experiment:v03",
         "population_freeze_sha256": ZERO,
         "path_id": path_id,
@@ -379,7 +377,7 @@ def _path_output_commitment(path_id: str) -> dict[str, object]:
 
 def _oracle_reveal() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-oracle-reveal-v0.3.8",
+        "schema_version": "agent-context-proof-oracle-reveal-v0.3.9",
         "experiment_id": "experiment:v03",
         "population_freeze_sha256": ZERO,
         "output_commitment_sha256s": [ONE, TWO],
@@ -415,9 +413,9 @@ def _archive_manifest(
     pack_type: str, archive: bytes, files: dict[str, bytes]
 ) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-pack-manifest-v0.3.8",
+        "schema_version": "agent-context-proof-pack-manifest-v0.3.9",
         "pack_type": pack_type,
-        "archive_format": "USTAR_CANONICAL_V0.3.8",
+        "archive_format": "USTAR_CANONICAL_V0.3.9",
         "archive_sha256": _digest(archive),
         "case_count": 12,
         "family_count": 4,
@@ -436,11 +434,11 @@ def _path_artifact_manifest(
     files: dict[str, bytes],
 ) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-path-artifact-manifest-v0.3.8",
+        "schema_version": "agent-context-proof-path-artifact-manifest-v0.3.9",
         "artifact_type": artifact_type,
         "path_id": path_id,
         "population_freeze_sha256": population_digest,
-        "archive_format": "USTAR_CANONICAL_V0.3.8",
+        "archive_format": "USTAR_CANONICAL_V0.3.9",
         "archive_sha256": _digest(archive),
         "case_count": 12,
         "repeat_count": 1,
@@ -453,7 +451,7 @@ def _path_artifact_manifest(
 
 def _trace_record(case_id: str, path_id: str, observer_rules: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-trace-v0.3.8",
+        "schema_version": "agent-context-proof-trace-v0.3.9",
         "case_id": case_id,
         "path_id": path_id,
         "repeat_index": 0,
@@ -481,7 +479,7 @@ def _path_run_record(
     result["trace_sha256"] = trace_digest
     result["provenance"] = deepcopy(provenance)
     return {
-        "schema_version": "agent-context-proof-path-run-v0.3.8",
+        "schema_version": "agent-context-proof-path-run-v0.3.9",
         "case_id": case_id,
         "path_id": path_id,
         "repeat_index": 0,
@@ -510,7 +508,6 @@ def _bundle_provenance(bundle: dict, bundle_bytes: bytes) -> dict[str, object]:
     recovery_anchor_id = "anchor:recovery-a-epoch-0"
     rotation_id = "entry:rotation-root-a-epoch-1"
     recovery_id = "entry:recovery-root-a"
-    delegation_id = "entry:delegation-release-council"
     decisive = {claim_id, root_id, recovery_anchor_id, rotation_id, recovery_id}
     evaluation_records = [
         {
@@ -542,7 +539,6 @@ def _bundle_provenance(bundle: dict, bundle_bytes: bytes) -> dict[str, object]:
                 {"record_id": item, "payload_sha256": digests[item]}
                 for item in authorization_ids
             ],
-            "decisive_for": [claim_id],
         }
 
     dependencies = [
@@ -553,7 +549,6 @@ def _bundle_provenance(bundle: dict, bundle_bytes: bytes) -> dict[str, object]:
         ),
         dependency("identity_introduction", rotation_id, [root_id, rotation_id]),
         dependency("lineage_head", recovery_id, [recovery_anchor_id, recovery_id]),
-        dependency("lineage_head", delegation_id, [root_id, delegation_id]),
         dependency("recovery", recovery_id, [recovery_anchor_id, recovery_id]),
     ]
     dependencies.sort(
@@ -1067,6 +1062,40 @@ def test_schemas_reject_unknown_null_invalid_combo_and_reason_code(
             validator.validate_artifacts([(kind, path)])
 
 
+def test_removed_unverifiable_provenance_fields_are_schema_invalid(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+
+    oracle = _oracle("case:unverifiable-edge")
+    oracle["oracle"]["provenance"]["authority_dependencies"][0]["decisive_for"] = [
+        "entry:claim"
+    ]
+    oracle_path = _write(tmp_path / "decisive-for.json", oracle)
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="Additional properties are not allowed",
+    ):
+        validator.validate_artifacts([("oracle_record", oracle_path)])
+
+    run = {
+        "schema_version": "agent-context-proof-path-run-v0.3.9",
+        "case_id": "case:unbound-failure-detail",
+        "path_id": "governed",
+        "repeat_index": 0,
+        "run_status": "MISSING",
+        "trace_sha256": ZERO,
+        "failure_code": "MISSING_OUTPUT",
+        "failure_detail_sha256": ONE,
+    }
+    run_path = _write(tmp_path / "failure-detail.json", run)
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="Additional properties are not allowed",
+    ):
+        validator.validate_artifacts([("path_run_record", run_path)])
+
+
 def test_strict_parser_rejects_duplicate_json_members(tmp_path: Path) -> None:
     validator = _validator_module()
     path = tmp_path / "duplicate.json"
@@ -1195,8 +1224,61 @@ def test_decisive_side_dependencies_have_exact_canonical_provenance(
             {"record_id": "anchor:operator", "payload_sha256": TWO},
             {"record_id": f"entry:{dependency_type}", "payload_sha256": THREE},
         ],
-        "decisive_for": ["entry:claim"],
     }
+
+
+def test_authorization_path_distinguishes_ordinary_and_recovery_anchors() -> None:
+    validator = _validator_module()
+    shared_identity = {
+        "issuer_id": "authority:shared",
+        "lineage_id": "lineage:shared",
+        "epoch": 0,
+        "key_id": "ed25519:shared",
+    }
+    records = {
+        "anchor:ordinary": {
+            "kind": "trust_anchor",
+            "value": deepcopy(shared_identity),
+        },
+        "anchor:recovery": {
+            "kind": "recovery_anchor",
+            "value": deepcopy(shared_identity),
+        },
+        "entry:rotation": {
+            "kind": "rotation",
+            "value": {
+                "issuer_id": shared_identity["issuer_id"],
+                "lineage_id": shared_identity["lineage_id"],
+                "issuer_epoch": shared_identity["epoch"],
+                "issuer_key_id": shared_identity["key_id"],
+                "predecessor_entry_id": "anchor:ordinary",
+                "successor_issuer_id": "authority:successor",
+                "successor_key_id": "ed25519:successor",
+                "successor_epoch": 1,
+            },
+        },
+        "entry:recovery": {
+            "kind": "recovery",
+            "value": {
+                "issuer_id": shared_identity["issuer_id"],
+                "lineage_id": shared_identity["lineage_id"],
+                "issuer_epoch": shared_identity["epoch"],
+                "issuer_key_id": shared_identity["key_id"],
+                "replacement_issuer_id": "authority:replacement",
+                "replacement_lineage_id": "lineage:replacement",
+                "replacement_epoch": 1,
+                "replacement_key_id": "ed25519:replacement",
+            },
+        },
+    }
+    decisive_ids = set(records)
+
+    assert validator._canonical_authorization_path(
+        "entry:rotation", records, decisive_ids, "case:anchor-class"
+    ) == ["anchor:ordinary", "entry:rotation"]
+    assert validator._canonical_authorization_path(
+        "entry:recovery", records, decisive_ids, "case:anchor-class"
+    ) == ["anchor:recovery", "entry:recovery"]
 
 
 def test_equal_prefix_authority_chains_have_one_total_order(tmp_path: Path) -> None:
@@ -1536,14 +1618,13 @@ def test_missing_run_is_visible_in_the_exact_result_matrix(tmp_path: Path) -> No
     existing = json.loads(pack["result_files_by_path"]["governed"][result_path])
     pack["result_files_by_path"]["governed"][result_path] = _json_bytes(
         {
-            "schema_version": "agent-context-proof-path-run-v0.3.8",
+            "schema_version": "agent-context-proof-path-run-v0.3.9",
             "case_id": "case:00",
             "path_id": "governed",
             "repeat_index": 0,
             "run_status": "MISSING",
             "trace_sha256": existing["trace_sha256"],
             "failure_code": "MISSING_OUTPUT",
-            "failure_detail_sha256": ZERO,
         }
     )
     _rebind_path_artifacts(pack, "governed")
@@ -1589,6 +1670,109 @@ def test_claim_spine_rejects_non_introduction_side_dependencies(
     with pytest.raises(
         validator.StructuralValidationError,
         match="non-introduction side dependency",
+    ):
+        validator.validate_complete_pack(**_complete_pack_kwargs(pack))
+
+
+def test_dependency_authorization_path_rejects_an_unrelated_anchor(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    pack = _build_complete_pack(tmp_path)
+    for oracle_path, oracle_bytes in list(pack["oracle_files"].items()):
+        if not oracle_path.startswith("oracles/"):
+            continue
+        oracle = json.loads(oracle_bytes)
+        for payload in [
+            oracle["oracle"],
+            *(item["annotation"] for item in oracle["annotations"]),
+            oracle["adjudication"]["oracle"],
+        ]:
+            provenance = payload["provenance"]
+            rotation_dependency = next(
+                item
+                for item in provenance["authority_dependencies"]
+                if item["dependency_type"] == "identity_introduction"
+                and item["record_id"] == "entry:rotation-root-a-epoch-1"
+            )
+            recovery_anchor = next(
+                item
+                for item in provenance["authority_evaluation_records"]
+                if item["record_id"] == "anchor:recovery-a-epoch-0"
+            )
+            rotation_dependency["authorization_records"][0] = {
+                "record_id": recovery_anchor["record_id"],
+                "payload_sha256": recovery_anchor["payload_sha256"],
+            }
+        pack["oracle_files"][oracle_path] = _json_bytes(oracle)
+    _rebind_complete_pack(pack)
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="canonical signer-introduction path",
+    ):
+        validator.validate_complete_pack(**_complete_pack_kwargs(pack))
+
+
+def test_dependency_collection_rejects_an_omitted_decisive_dependency(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    pack = _build_complete_pack(tmp_path)
+    oracle_path = "oracles/case:00.json"
+    oracle = json.loads(pack["oracle_files"][oracle_path])
+    for payload in [
+        oracle["oracle"],
+        *(item["annotation"] for item in oracle["annotations"]),
+        oracle["adjudication"]["oracle"],
+    ]:
+        dependencies = payload["provenance"]["authority_dependencies"]
+        dependencies[:] = [
+            item
+            for item in dependencies
+            if not (
+                item["dependency_type"] == "lineage_head"
+                and item["record_id"] == "entry:recovery-root-a"
+            )
+        ]
+    pack["oracle_files"][oracle_path] = _json_bytes(oracle)
+    _rebind_complete_pack(pack)
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="exact decisive set",
+    ):
+        validator.validate_complete_pack(**_complete_pack_kwargs(pack))
+
+
+def test_dependency_type_must_match_its_target_kind(tmp_path: Path) -> None:
+    validator = _validator_module()
+    pack = _build_complete_pack(tmp_path)
+    oracle_path = "oracles/case:00.json"
+    oracle = json.loads(pack["oracle_files"][oracle_path])
+    for payload in [
+        oracle["oracle"],
+        *(item["annotation"] for item in oracle["annotations"]),
+        oracle["adjudication"]["oracle"],
+    ]:
+        dependencies = payload["provenance"]["authority_dependencies"]
+        root = next(
+            item
+            for item in dependencies
+            if item["dependency_type"] == "identity_introduction"
+            and item["record_id"] == "anchor:root-a-epoch-0"
+        )
+        root["dependency_type"] = "precedence"
+        dependencies.sort(
+            key=lambda item: (
+                item["dependency_type"],
+                item["record_id"],
+                item["payload_sha256"],
+            )
+        )
+    pack["oracle_files"][oracle_path] = _json_bytes(oracle)
+    _rebind_complete_pack(pack)
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="dependency type does not match target",
     ):
         validator.validate_complete_pack(**_complete_pack_kwargs(pack))
 
@@ -1695,6 +1879,7 @@ def test_relatedness_edges_are_unique_exact_and_evidence_bound(
         "9007199254740992.0",
         "9.007199254740992e15",
         "1e100",
+        "1e999999999999999999999999999999",
         "0.5",
     ],
 )

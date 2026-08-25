@@ -380,6 +380,8 @@
         "EXACT_AGREEMENT_if_and_only_if_both_annotations_equal_the_final_oracle",
         "oracle_rule_output_reason_and_provenance_relations_are_closed",
         "oracle_rule_ids_and_reason_codes_are_unicode_code_point_sorted",
+        "authority_dependencies_equal_the_exact_decisive_set_with_type_matched_targets",
+        "dependency_authorization_records_equal_the_canonical_full_identity_tuple_signer_path",
         "aggregate_counts_equal_validated_pack_contents",
         "committed_pack_case_exclusions_are_empty_and_any_committed_case_defect_invalidates_the_experiment",
         "one_frozen_repeat_count_applies_to_every_declared_path",
@@ -389,6 +391,7 @@
         "output_commitments_recompute_and_bind_exact_result_and_trace_archive_and_manifest_bytes",
         "one_timestamped_output_commitment_per_declared_path_precedes_oracle_reveal",
         "all_JSON_numbers_normalize_to_exact_safe_integers_independent_of_lexical_form",
+        "every_unsafe_numeric_form_returns_the_bounded_INVALID_interface",
         "final_receipt_binds_population_outputs_and_oracle_reveal_by_exact_digest"
       ],
       "unknown_properties": "REJECT"
@@ -454,7 +457,7 @@
         "reveal_after": "all_path_outputs_digest_committed"
       },
       "archive_profile": {
-        "format": "USTAR_CANONICAL_V0.3.8",
+        "format": "USTAR_CANONICAL_V0.3.9",
         "members": "regular_files_only",
         "member_order": "ascending_unicode_code_point_path",
         "metadata": "uid_0_gid_0_empty_names_mtime_0_mode_0644_no_pax",
@@ -827,9 +830,8 @@
       "authority_chains": "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id,chain_sha256)",
       "authority_evaluation_records": "ascending_unicode_code_point_tuple(record_id,payload_sha256)",
       "authority_dependencies": "ascending_unicode_code_point_tuple(dependency_type,record_id,payload_sha256)",
-      "authorization_records_within_dependency": "semantic_chain_order_from_authorizing_anchor_to_dependency_record",
+      "authorization_records_within_dependency": "unique_canonical_signer_introduction_path_from_correct_anchor_to_dependency_record",
       "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
-      "decisive_for_within_dependency": "ascending_unicode_code_point",
       "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
       "records_within_authority_chain": "semantic_chain_order_from_anchor_to_claim",
       "unevaluated_stages": "stage_order_suffix"
@@ -851,8 +853,7 @@
       "dependency_type",
       "record_id",
       "payload_sha256",
-      "authorization_records",
-      "decisive_for"
+      "authorization_records"
     ],
     "authority_dependency_types": [
       "identity_introduction",
@@ -861,6 +862,16 @@
       "recovery",
       "revocation"
     ],
+    "authority_dependency_set": "exact_complete_set_of_decisive_identity_introductions_decisive_lineage_heads_precedence_recovery_and_revocation_records",
+    "authorization_path_identity_tuple": [
+      "issuer_id",
+      "lineage_id",
+      "epoch",
+      "key_id"
+    ],
+    "authorization_path_tie_break": "lexicographically_least_complete_record_id_tuple",
+    "dependency_target_kind_must_match_type": true,
+    "per_claim_decisive_for_edges": "not_represented;all_listed_dependencies_are_globally_decisive_for_the_reported_authority_classification",
     "authority_evaluation_record_required_fields": [
       "record_id",
       "payload_sha256",
@@ -885,7 +896,7 @@
       },
       {
         "id": "PV3_AUTHORITY_DEPENDENCIES",
-        "rule": "Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list naming claim endpoints only. A claim chain may contain only its connected authority-introduction spine—delegation, rotation, or recovery—between the external anchor and claim; precedence and revocation side dependencies are never appended."
+        "rule": "`authority_dependencies` equals the complete set of decisive identity introductions, decisive lineage-head pins, precedence edges, recoveries, and revocations—no omissions or extras. Each dependency has the unique canonical signer-authorization path derived from exact issuer, lineage, epoch, and key tuples; rotation additionally follows its predecessor link. For multiple valid signer-introduction paths, choose the lexicographically least complete record-ID tuple. Dependency type must match the target record kind. Per-claim `decisive_for` edges are not represented because the structural contract does not claim to derive that finer causal attribution."
       },
       {
         "id": "PV4_CONFLICT_COVERAGE",
@@ -942,7 +953,7 @@
     "TRUST_OR_TIME_UNSATISFIED",
     "VALID_ISSUER_CONFLICT"
   ],
-  "schema_version": "agent-context-proof-protocol-v0.3.8",
+  "schema_version": "agent-context-proof-protocol-v0.3.9",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",

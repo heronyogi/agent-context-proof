@@ -400,7 +400,7 @@ The rules below are normative and mirrored in the machine protocol.
 | --- | --- |
 | `PV1_REACHED_STAGES` | Record exact paths, record IDs, and digests for every evaluation stage reached; list every stage skipped by an earlier terminal classification in unevaluated_stages. |
 | `PV2_AUTHORITY_CHAIN` | Each decisive authority claim records issuer_id, claim_entry_id, chain_sha256, and ordered records from its trust anchor through the claim, with the RFC 8785 payload SHA-256 for every record. chain_sha256 is SHA-256 of the RFC 8785 JCS object containing exactly issuer_id, claim_entry_id, and records. At least one chain is required whenever authority_status is VALID or CONFLICT. |
-| `PV3_AUTHORITY_DEPENDENCIES` | Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list naming claim endpoints only. A claim chain may contain only its connected authority-introduction spine—delegation, rotation, or recovery—between the external anchor and claim; precedence and revocation side dependencies are never appended. |
+| `PV3_AUTHORITY_DEPENDENCIES` | `authority_dependencies` equals the complete set of decisive identity introductions, decisive lineage-head pins, precedence edges, recoveries, and revocations—no omissions or extras. Each dependency has the unique canonical signer-authorization path derived from exact issuer, lineage, epoch, and key tuples; rotation additionally follows its predecessor link. For multiple valid signer-introduction paths, choose the lexicographically least complete record-ID tuple. Dependency type must match the target record kind. Per-claim `decisive_for` edges are not represented because the structural contract does not claim to derive that finer causal attribution. |
 | `PV4_CONFLICT_COVERAGE` | AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid. |
 | `PV5_SHORT_CIRCUIT` | When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance. |
 | `PV6_BUNDLE_COVERAGE` | authority_evaluation_records contains every trust anchor, recovery anchor, and signed entry in the exact authority bundle once, with its recomputed payload digest, classification, and decisive flag; every reported chain or dependency resolves to that closed index, every claim endpoint is decisive, and required dependency types are present. |
@@ -411,13 +411,24 @@ the decisive claim. Every record carries its ID and SHA-256 of the UTF-8 RFC
 8785 JCS payload with the top-level signature removed when present. Decisive
 identity introductions, lineage-head pins, precedence edges, recoveries, and
 revocations are separate `authority_dependencies` records. Each dependency
-records its type, record ID and digest, its semantic authorization path, and a
-`decisive_for` list naming the claim endpoint record IDs whose resolved state it
-determines. This is a canonical dependency representation: a connected
-delegation, rotation, or recovery that introduces the claim signer appears on
-the linear claim spine and also receives its separately typed dependency
-record; precedence and revocation records never appear on that spine. Contract
-and evidence provenance records use exact permitted-input paths
+records its type, record ID and digest, and its canonical signer-authorization
+path. The path begins at the correct ordinary or recovery anchor, follows exact
+issuer, lineage, epoch, and key tuples through delegation, rotation, or recovery
+introductions, and ends at the dependency. Rotation paths also follow exact
+predecessor links. If more than one signer-introduction path is valid, the
+Unicode-code-point lexicographically least complete record-ID tuple is the only
+canonical path. The dependency type must match the target kind, every target and
+path record is decisive, and the dependency collection equals the complete
+derived decisive set. No per-claim `decisive_for` edge is encoded; every listed
+dependency is globally decisive for the reported authority classification, and
+the protocol makes no finer causal-attribution claim.
+
+The claim chain is a different, lineage-oriented structure. It follows connected
+delegation and rotation signer introductions plus recovery predecessor links
+from an external lineage anchor to the claim. A recovery's separate signer path
+begins at its recovery anchor and appears in `authority_dependencies`.
+Precedence and revocation records never appear on the claim spine. Contract and
+evidence provenance records use exact permitted-input paths
 and byte digests.
 All paths are relative POSIX paths without dot segments and must appear in the
 permitted-input manifest. Evaluation stage order is authority, contract, then
@@ -430,9 +441,9 @@ Array ordering is canonical. `authority_chains` sort by the Unicode-code-point
 tuple `(issuer_id, claim_entry_id, chain_sha256)`. The digest supplies a total
 order for multiple support paths to one claim. `authority_dependencies` sort by
 `(dependency_type, record_id, payload_sha256)`; each dependency's
-`authorization_records` retain semantic order from its authorizing anchor to
-the dependency record, and `decisive_for` sorts by Unicode code point. Contract
-and evidence records sort by `(path, sha256)`. Records inside one authority
+`authorization_records` retain canonical signer-authorization order from the
+correct anchor to the dependency record. Contract and evidence records sort by
+`(path, sha256)`. Records inside one authority
 chain retain semantic chain order from anchor to claim, and
 `unevaluated_stages` retains stage order. Two outputs with identical members in
 a different order are not both canonical.
@@ -530,8 +541,10 @@ duplicates, extras, or cross-coordinate bindings are invalid.
 
 A `COMPLETE` path-run record embeds one schema-valid result and binds the exact
 trace bytes by SHA-256. A `MISSING`, `ERROR`, or `SCHEMA_INVALID` run carries a
-typed failure code and failure-detail digest instead of a result; it remains in
-the matrix and cannot become an exclusion. Every trace binds its case, path,
+typed failure code instead of a result; it remains in the matrix and cannot
+become an exclusion. Failure evidence belongs in the exact bound trace; the run
+record does not carry a commitment-shaped digest without a supplied object.
+Every trace binds its case, path,
 repeat, frozen observer-rule digest, contiguous event sequence, and event
 payload digests. Trace events cannot precede input reveal or occur after the
 path's output commitment.

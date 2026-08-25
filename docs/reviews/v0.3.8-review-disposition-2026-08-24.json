@@ -1,0 +1,43 @@
+{
+  "schema_version": "agent-context-proof-review-disposition-v0.1",
+  "recorded_at": "2026-08-25T00:50:07Z",
+  "subject": {
+    "repository": "https://github.com/heronyogi/agent-context-proof",
+    "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/7",
+    "commit": "6689088e71a00af969c040b22dbc45063596c6fe",
+    "tree": "b101d471f45bd576635f11497d5f55e15717ed4d",
+    "git_archive_tar_sha256": "4a9149c61ca5578bda0d03f370d4cc26f5ebfe86cbc90f96340a5f7a6da379dd"
+  },
+  "independent_review": {
+    "reviewer_type": "ordinary AI collaborator; not an authenticated persona runtime",
+    "outcome": "REQUEST_CHANGES",
+    "public_record": "https://github.com/heronyogi/agent-context-proof/pull/7#issuecomment-5403498888",
+    "completed_local_record_sha256": "ccbc7b96ec91e07ef9759530cf96960c7468bd0bfd88d597627f373ab7e20f3b",
+    "completed_local_record_scope_paths_verified": 25,
+    "blocking_classes": [
+      "ACP-V03-013_CANONICAL_DEPENDENCY_GRAPH"
+    ],
+    "nonblocking_observations": [
+      "UNBOUND_FAILURE_DETAIL_DIGEST",
+      "UNCAUGHT_EXTREME_EXPONENT_EXCEPTION"
+    ],
+    "repository_or_pull_request_writes_by_reviewer": false,
+    "authority_effect": "review_recommendation_only"
+  },
+  "owner_disposition": {
+    "finding_disposition": "ACCEPT_FINDINGS_AND_PREPARE_NEW_SUCCESSOR",
+    "reviewed_subject_mutation": "PROHIBITED",
+    "successor_version": "v0.3.9",
+    "successor_requires_new_exact_sha_review": true,
+    "case_sealing": "HELD_PENDING_SUCCESSOR_REVIEW",
+    "implementation": "CLOSED",
+    "blind_case_exposure": "PROHIBITED"
+  },
+  "history_preservation": {
+    "v0.3.5_reconciliation": "docs/reviews/v0.3.5-reconciliation-2026-08-24.json",
+    "v0.3.6_review_disposition": "docs/reviews/v0.3.6-review-disposition-2026-08-24.json",
+    "v0.3.7_review_disposition": "docs/reviews/v0.3.7-review-disposition-2026-08-24.json",
+    "prior_exact_sha_records_reinterpreted_or_revoked": false,
+    "green_checks_treated_as_approval": false
+  }
+}
