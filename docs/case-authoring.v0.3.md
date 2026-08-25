@@ -213,7 +213,7 @@ python scripts/validate_v03_artifact.py complete-pack \
 ```
 
 The sealed packs and every per-path result and trace collection are uncompressed
-`USTAR_CANONICAL_V0.3.10` archives. Members are Unicode-code-point sorted regular
+`USTAR_CANONICAL_V0.3.11` archives. Members are Unicode-code-point sorted regular
 files only, with uid/gid 0, empty owner names, mtime 0, mode 0644, no PAX fields,
 safe relative POSIX paths, and exact external manifest coverage. Result members
 use `results/<path_id>/<case_id>/<repeat_index>.json`; trace members use
@@ -232,7 +232,7 @@ Each record in the sealed input pack contains:
 
 ```json
 {
-  "schema_version": "agent-context-proof-case-v0.3.10",
+  "schema_version": "agent-context-proof-case-v0.3.11",
   "case_id": "blind_example_001",
   "family_id": "authority_rotation",
   "split": "blind_validation",
@@ -253,7 +253,7 @@ The matching sealed record contains an oracle payload of this shape:
 
 ```json
 {
-  "schema_version": "agent-context-proof-oracle-v0.3.10",
+  "schema_version": "agent-context-proof-oracle-v0.3.11",
   "case_id": "blind_example_001",
   "case_coordinate": {
     "organization": "org:orion",
@@ -390,10 +390,15 @@ At least two eligible annotators who did not implement either evaluated
 resolver independently apply the committed oracle-classification tables. Each
 annotation records the three output fields, the applicable `OA`, `OE`, and `V`
 rule IDs, the complete case coordinate, validation time, decisive provenance,
-and a deterministic rationale. The v0.3.10 record profile embeds exactly two
+and a deterministic rationale. The v0.3.11 record profile embeds exactly two
 full annotations in the sealed
 oracle record with a non-cryptographic declaration. An `OE` rule is required
 only after `OA1_VALID`; mechanism failure instead records only `V7` or `V8`.
+Complete-pack validation resolves each annotation's own provenance against the
+exact permitted case inputs using the same closed algorithm as the final oracle
+and complete results. Annotation disagreement never relaxes bundle, digest,
+classification, decisiveness, chain, dependency, authorization-path, or status
+validation.
 
 The protocol reviewer compares the annotations before pack commitment. Exact
 agreement is recorded as `EXACT_AGREEMENT`; both embedded payloads must equal
@@ -510,11 +515,6 @@ trusted external argument and a content-addressed approved-protocol manifest
 derived from the object-bound decision. Agreement between two pack records is
 necessary but insufficient; neither record may select its own approval object
 or substitute different governing bytes.
-
-Closed validation additionally receives the approved protocol commit as a
-trusted external argument derived from the object-bound decision. Agreement
-between two pack records is necessary but insufficient; neither record may
-select its own approval object.
 
 After reveal, changes to evaluated code, prompts, rules, cases, or labels create
 a new experiment version. They cannot be folded into the original v0.3 result.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/heronyogi/agent-context-proof/docs/authorship-collection.v0.3.schema.json",
-  "title": "Agent Context Proof v0.3.10 authorship collection",
+  "title": "Agent Context Proof v0.3.11 authorship collection",
   "$ref": "protocol-artifact-defs.v0.3.schema.json#/$defs/authorship_collection"
 }

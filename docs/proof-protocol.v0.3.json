@@ -420,6 +420,7 @@
         "authority_dependencies_equal_the_exact_decisive_set_with_type_matched_targets",
         "dependency_authorization_records_equal_the_canonical_full_identity_tuple_signer_path",
         "classification_decisiveness_provenance_roles_and_authority_status_form_one_closed_relation",
+        "final_oracle_both_annotations_adjudication_and_complete_results_each_receive_full_input_bound_provenance_validation",
         "pack_protocol_commit_equals_the_trusted_external_approved_protocol_commit_input",
         "approved_protocol_manifest_digest_file_set_and_governed_bytes_equal_the_trusted_external_decision",
         "aggregate_counts_equal_validated_pack_contents",
@@ -497,7 +498,7 @@
         "reveal_after": "all_path_outputs_digest_committed"
       },
       "archive_profile": {
-        "format": "USTAR_CANONICAL_V0.3.10",
+        "format": "USTAR_CANONICAL_V0.3.11",
         "members": "regular_files_only",
         "member_order": "ascending_unicode_code_point_path",
         "metadata": "uid_0_gid_0_empty_names_mtime_0_mode_0644_no_pax",
@@ -961,6 +962,10 @@
       {
         "id": "PV7_CLASSIFICATION_COHERENCE",
         "rule": "`NONMATCHING` records are never decisive. Every record on an `authority_chain` and every non-target signer-introduction record in a dependency authorization path is classified `VALID`. For a `CONFORMANT` mechanism, decisive `UNRESOLVED` records occur if and only if authority is `INDETERMINATE`, and `INVALID` authority requires at least one decisive `INVALID` record."
+      },
+      {
+        "id": "PV8_ANNOTATION_PROVENANCE_CLOSURE",
+        "rule": "Complete-pack validation applies PV1-PV7 independently to the final oracle, both embedded annotations, the adjudicated oracle payload, and every `COMPLETE` result. Annotation disagreement may select `RULE_APPLICATION`; it never relaxes input, digest, classification, decisiveness, chain, dependency, authorization-path, or status-route validation for either annotation."
       }
     ],
     "path_format": "relative_posix_without_dot_segments_and_present_in_permitted_inputs_manifest",
@@ -1005,7 +1010,7 @@
     "TRUST_OR_TIME_UNSATISFIED",
     "VALID_ISSUER_CONFLICT"
   ],
-  "schema_version": "agent-context-proof-protocol-v0.3.10",
+  "schema_version": "agent-context-proof-protocol-v0.3.11",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",

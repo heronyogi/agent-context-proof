@@ -15,8 +15,8 @@ source, production data, or internal names are included.
 | Goal | Read |
 | --- | --- |
 | Understand the current claim and its limits | This README and [`docs/proof-protocol.md`](docs/proof-protocol.md) |
-| Review the v0.3.10 protocol successor | [`docs/v0.3-review-guide.md`](docs/v0.3-review-guide.md) |
-| Inspect the exact review history | [`v0.3.5 reconciliation`](docs/reviews/v0.3.5-reconciliation-2026-08-24.json), [`v0.3.6 disposition`](docs/reviews/v0.3.6-review-disposition-2026-08-24.json), [`v0.3.7 disposition`](docs/reviews/v0.3.7-review-disposition-2026-08-24.json), [`v0.3.8 disposition`](docs/reviews/v0.3.8-review-disposition-2026-08-24.json), and [`v0.3.9 disposition`](docs/reviews/v0.3.9-review-disposition-2026-08-24.json) |
+| Review the v0.3.11 protocol successor | [`docs/v0.3-review-guide.md`](docs/v0.3-review-guide.md) |
+| Inspect the exact review history | [`v0.3.5 reconciliation`](docs/reviews/v0.3.5-reconciliation-2026-08-24.json), [`v0.3.6 disposition`](docs/reviews/v0.3.6-review-disposition-2026-08-24.json), [`v0.3.7 disposition`](docs/reviews/v0.3.7-review-disposition-2026-08-24.json), [`v0.3.8 disposition`](docs/reviews/v0.3.8-review-disposition-2026-08-24.json), [`v0.3.9 disposition`](docs/reviews/v0.3.9-review-disposition-2026-08-24.json), and [`v0.3.10 disposition`](docs/reviews/v0.3.10-review-disposition-2026-08-24.json) |
 | Inspect the machine contract and strict schemas | [`docs/proof-protocol.v0.3.json`](docs/proof-protocol.v0.3.json) and [`docs/case-authoring.v0.3.md`](docs/case-authoring.v0.3.md) |
 | Reproduce the approved v0.2.2 result | [Reproduction instructions](#reproduce-the-deterministic-proof) |
 | Understand federation boundaries | [`SYSTEM.md`](SYSTEM.md), [`CONTRACTS.md`](CONTRACTS.md), and [`federation/fet-001/`](federation/fet-001/) |
@@ -50,15 +50,15 @@ reproducible [Ed25519/JCS reference vectors](tests/fixtures/authority-ledger.v0.
 The vectors contain intentionally public, test-only private seeds for
 conformance testing. They are not production authority data or credentials.
 
-The v0.3.10 successor carries forward the earlier authority, provenance, and
-sealing-workflow corrections, then addresses the two blockers found in the
-exact-object v0.3.9 review. Classification, decisiveness, claim-chain roles,
-dependency authorization roles, and reported authority status now form one
-closed relation. Complete-pack validation also requires the exact approved
-protocol commit as trusted external input from the object-bound owner/review
-decision plus a content-addressed closed manifest of every governing protocol,
-schema, guide, and validator byte; a pack cannot select its own approval object
-or substitute a different validator checkout. Sixteen strict
+The v0.3.11 successor carries forward the earlier authority, provenance,
+classification, and sealing-workflow corrections, then addresses the sole
+blocker found in the exact-object v0.3.10 review. Complete-pack validation now
+applies the same input-bound provenance algorithm independently to the final
+oracle, both embedded annotations, the adjudicated payload, and every complete
+result. An annotation may disagree legitimately, but it cannot cite nonexistent
+inputs or carry incoherent classification, decisiveness, dependency, or chain
+records. The external approved-commit and content-addressed protocol-manifest
+boundary introduced in v0.3.10 remains closed. Sixteen strict
 experiment-artifact schemas and
 [`scripts/validate_v03_artifact.py`](scripts/validate_v03_artifact.py) provide
 separate record-shape and closed complete-pack validation. The complete mode

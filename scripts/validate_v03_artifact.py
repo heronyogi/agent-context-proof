@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate v0.3.10 protocol artifacts without model judgment."""
+"""Validate v0.3.11 protocol artifacts without model judgment."""
 
 from __future__ import annotations
 
@@ -789,7 +789,7 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
         )
         if value["case_exclusions"]:
             raise StructuralValidationError(
-                "a committed v0.3.10 candidate pack cannot exclude individual cases"
+                "a committed v0.3.11 candidate pack cannot exclude individual cases"
             )
         _require_sorted(
             value["included_case_ids"],
@@ -914,7 +914,7 @@ def _load_canonical_ustar(path: Path) -> tuple[bytes, dict[str, bytes]]:
 def _verify_manifest(
     manifest: dict[str, Any], archive_bytes: bytes, files: dict[str, bytes]
 ) -> None:
-    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.10":
+    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.11":
         raise StructuralValidationError("unsupported archive format")
     if manifest["archive_sha256"] != _sha256_bytes(archive_bytes):
         raise StructuralValidationError("manifest archive digest mismatch")
@@ -1821,14 +1821,21 @@ def validate_complete_pack(
         ):
             raise StructuralValidationError("pack manifest aggregate counts mismatch")
     for case in cases:
-        _validate_case_provenance(
-            case,
-            oracles[case["case_id"]],
-            input_files,
-            permitted_by_case[case["case_id"]],
-            registry,
-            validators,
-        )
+        oracle_record = oracles[case["case_id"]]
+        provenance_payloads = [
+            oracle_record["oracle"],
+            *(item["annotation"] for item in oracle_record["annotations"]),
+            oracle_record["adjudication"]["oracle"],
+        ]
+        for payload in provenance_payloads:
+            _validate_case_provenance(
+                case,
+                {"oracle": payload},
+                input_files,
+                permitted_by_case[case["case_id"]],
+                registry,
+                validators,
+            )
 
     population_bytes = population_freeze_path.read_bytes()
     population = parse_strict_json_bytes(population_bytes, str(population_freeze_path))
@@ -2285,7 +2292,7 @@ def _assignment(value: str) -> tuple[str, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate v0.3.10 record shapes or one complete sealed workflow."
+        description="Validate v0.3.11 record shapes or one complete sealed workflow."
     )
     subparsers = parser.add_subparsers(dest="mode", required=True)
     record_parser = subparsers.add_parser(
