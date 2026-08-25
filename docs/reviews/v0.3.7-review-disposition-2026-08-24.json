@@ -1,0 +1,43 @@
+{
+  "schema_version": "agent-context-proof-review-disposition-v0.1",
+  "recorded_at": "2026-08-25T00:08:39Z",
+  "subject": {
+    "repository": "https://github.com/heronyogi/agent-context-proof",
+    "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/6",
+    "commit": "4b34da1fe0caa85f55453a87fcdba6ab1d6d98a4",
+    "tree": "720309f783e9e910abfc6f420aa623b09d73c2e7",
+    "git_archive_tar_sha256": "7ff6fd986b8d6e35046df900bdabdd4addecb67146bfc663fbcb0ad58d527a82"
+  },
+  "independent_review": {
+    "reviewer_type": "ordinary AI collaborator; not an authenticated persona runtime",
+    "outcome": "REQUEST_CHANGES",
+    "public_record": "https://github.com/heronyogi/agent-context-proof/pull/6#issuecomment-5403139631",
+    "completed_local_record_sha256": "5ae41a697a773aeac12c272a053b7708302d6c37a45da185f3ad9096ac7d9d78",
+    "completed_local_record_scope_paths_verified": 30,
+    "blocking_classes": [
+      "ACP-V03-007_RESULT_AND_TRACE_CLOSURE",
+      "ACP-V03-008_DEPENDENCY_REPRESENTATION",
+      "ACP-V03-009_EXCLUSION_INTEGRITY",
+      "ACP-V03-010_ADJUDICATION_STATE",
+      "ACP-V03-011_RELATEDNESS_EVIDENCE",
+      "ACP-V03-012_NUMERIC_DOMAIN"
+    ],
+    "repository_or_pull_request_writes_by_reviewer": false,
+    "authority_effect": "review_recommendation_only"
+  },
+  "owner_disposition": {
+    "finding_disposition": "ACCEPT_FINDINGS_AND_PREPARE_NEW_SUCCESSOR",
+    "reviewed_subject_mutation": "PROHIBITED",
+    "successor_version": "v0.3.8",
+    "successor_requires_new_exact_sha_review": true,
+    "case_sealing": "HELD_PENDING_SUCCESSOR_REVIEW",
+    "implementation": "CLOSED",
+    "blind_case_exposure": "PROHIBITED"
+  },
+  "history_preservation": {
+    "v0.3.5_reconciliation": "docs/reviews/v0.3.5-reconciliation-2026-08-24.json",
+    "v0.3.6_review_disposition": "docs/reviews/v0.3.6-review-disposition-2026-08-24.json",
+    "prior_exact_sha_records_reinterpreted_or_revoked": false,
+    "green_checks_treated_as_approval": false
+  }
+}

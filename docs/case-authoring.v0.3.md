@@ -43,18 +43,35 @@ oracle archive commitment prevents silent mutation, while the protocol reviewer
 must verify author identity and eligibility from external evidence.
 
 The protocol reviewer builds an undirected relatedness graph before case-pack
-commitment. Families are connected when they share a primary or coauthor,
-coordinate on expected outcomes, or use source material that substantially
-determines the expected outcome. Connected components, not the authors' family
-labels, are the independence clusters used for reporting. Cosmetic templates
-and the required public schema may be shared when they contain no
-outcome-determining content, but their digests must still be disclosed.
+commitment. Families are connected exactly when their disclosures share a
+primary or coauthor, share an outcome-determining source digest, or record
+coordination about expected outcomes. There is at most one sorted edge for each
+unordered family pair. Its relation types are the exact applicable types, and
+its `evidence_sha256` is the `sha256:<lowercase hex>` digest of the UTF-8 RFC
+8785 JCS encoding of exactly this object, with every array sorted and every key
+present even when its array is empty:
+
+```json
+{
+  "coordination_evidence_sha256s": [],
+  "family_ids": ["family:a", "family:b"],
+  "outcome_determining_source_sha256s": [],
+  "shared_author_ids": []
+}
+```
+
+Connected components, not the authors' family labels, are the independence
+clusters used for reporting. Cosmetic templates and the required public schema
+may be shared when they contain no outcome-determining content, but their
+digests must still be disclosed.
 
 An undisclosed or disqualifying implementation role makes the family ineligible,
-not merely caveated. If a relationship or shared source cannot be classified
-confidently, the families are conservatively placed in the same cluster. A new
-eligible family from a distinct primary author and cluster is required whenever
-an exclusion or merger takes the blind pack below four.
+not merely caveated. The validator can prove that the graph exactly represents
+the disclosures; it cannot prove that the disclosures are truthful. If a
+relationship or shared source cannot be classified confidently, the candidate
+pack is not committed until the declaration is resolved. A new eligible family
+from a distinct primary author and cluster is required whenever a pre-commitment
+rejection or merger takes the candidate pack below four.
 
 ## Three-envelope delivery
 
@@ -113,33 +130,45 @@ freeze, reveal, and score a v0.3 experiment:
 - [`case-record.v0.3.schema.json`](case-record.v0.3.schema.json)
 - [`oracle-record.v0.3.schema.json`](oracle-record.v0.3.schema.json)
 - [`result-record.v0.3.schema.json`](result-record.v0.3.schema.json)
+- [`path-run-record.v0.3.schema.json`](path-run-record.v0.3.schema.json)
+- [`trace-record.v0.3.schema.json`](trace-record.v0.3.schema.json)
 - [`authorship-attestation.v0.3.schema.json`](authorship-attestation.v0.3.schema.json)
 - [`authorship-collection.v0.3.schema.json`](authorship-collection.v0.3.schema.json)
 - [`relatedness-graph.v0.3.schema.json`](relatedness-graph.v0.3.schema.json)
 - [`leakage-review-attestation.v0.3.schema.json`](leakage-review-attestation.v0.3.schema.json)
 - [`public-commitment.v0.3.schema.json`](public-commitment.v0.3.schema.json)
 - [`sealed-pack-manifest.v0.3.schema.json`](sealed-pack-manifest.v0.3.schema.json)
+- [`path-artifact-manifest.v0.3.schema.json`](path-artifact-manifest.v0.3.schema.json)
 - [`freeze-reveal-record.v0.3.schema.json`](freeze-reveal-record.v0.3.schema.json)
 - [`population-freeze-record.v0.3.schema.json`](population-freeze-record.v0.3.schema.json)
 - [`path-output-commitment.v0.3.schema.json`](path-output-commitment.v0.3.schema.json)
 - [`oracle-reveal-record.v0.3.schema.json`](oracle-reveal-record.v0.3.schema.json)
 
 All schemas reject unknown properties, null in required fields, duplicate JSON
-members, out-of-vocabulary enum values, unsafe integers, malformed digests, and
-non-canonical path shapes. The normative structural algorithm is
+members, out-of-vocabulary enum values, malformed digests, and non-canonical
+path shapes. The strict parser accepts only JSON numbers whose mathematical
+value is an integer in `[-9007199254740991, 9007199254740991]`; equivalent
+spellings such as `100`, `100.0`, and `1e2` normalize to the same integer, while
+fractional or out-of-range values are rejected. The normative structural
+algorithm is
 [`validate_v03_artifact.py`](../scripts/validate_v03_artifact.py). It performs
 strict I-JSON parsing before schema validation and then applies the semantic
-checks JSON Schema cannot express. `record` mode validates individual shapes and
-never certifies a sealed experiment. `complete-pack` mode requires both exact
-archives, both manifests, every control record, the population freeze, one
-timestamped output commitment per declared path, the oracle reveal, and the
-final receipt. It recomputes keyed uniqueness, exact case/family/population
-sets, relatedness components, leakage coverage, canonical ordering, archive and
-manifest byte/size/digest coverage, permitted-input coverage, authority-bundle
-and provenance linkage, output-rule-reason relations, post-exclusion floors,
-and strict phase ordering. A pack is structurally valid only when
+checks JSON Schema cannot express. `record` mode validates individual shapes
+and never certifies a sealed experiment. `complete-pack` mode requires the exact
+input and oracle archives, one exact result archive and one exact trace archive
+per frozen path, all corresponding manifests, every control record, the
+population freeze, one timestamped output commitment per declared path, the
+oracle reveal, and the final receipt. It recomputes keyed uniqueness, exact
+case/family/population sets, relatedness facts and components, leakage coverage,
+canonical ordering, archive and manifest byte/size/digest coverage,
+case × path × repeat coverage, typed run failures, trace-to-result bindings,
+permitted-input coverage, authority-bundle and provenance linkage,
+output-rule-reason relations, committed-population floors, and strict phase
+ordering. A pack is structurally valid only when
 `complete-pack` returns success. Model judgment or a model-authored validity
-report is not a substitute.
+report is not a substitute. Structural success does not assert that the
+governed path passed the experiment: typed missing, execution-error, or
+schema-invalid runs remain valid records and count as experimental failures.
 
 The two modes are explicit:
 
@@ -152,20 +181,31 @@ python scripts/validate_v03_artifact.py complete-pack \
   --oracle-archive sealed-oracle.tar \
   --oracle-manifest sealed-oracle.manifest.json \
   --population-freeze population-freeze.json \
+  --result-archive governed.results.tar \
+  --result-archive retrieval-plus-rules.results.tar \
+  --result-manifest governed.results.manifest.json \
+  --result-manifest retrieval-plus-rules.results.manifest.json \
+  --trace-archive governed.traces.tar \
+  --trace-archive retrieval-plus-rules.traces.tar \
+  --trace-manifest governed.traces.manifest.json \
+  --trace-manifest retrieval-plus-rules.traces.manifest.json \
   --output-commitment governed.commitment.json \
   --output-commitment retrieval-plus-rules.commitment.json \
   --oracle-reveal oracle-reveal.json \
   --freeze-reveal final-receipt.json
 ```
 
-Both sealed packs are uncompressed `USTAR_CANONICAL_V0.3.7` archives. Members
-are Unicode-code-point sorted regular files only, with uid/gid 0, empty owner
-names, mtime 0, mode 0644, no PAX fields, safe relative POSIX paths, and exact
-external manifest coverage. The complete-pack validator reserializes the
-member map with the reference USTAR algorithm and requires byte equality,
-including standard USTAR headers, zero-filled file padding, two zero end
-blocks, and zero padding to the next 10,240-byte record. Validation reads
-member bytes without extracting them. A permitted-input manifest uses sorted lines of
+The sealed packs and every per-path result and trace collection are uncompressed
+`USTAR_CANONICAL_V0.3.8` archives. Members are Unicode-code-point sorted regular
+files only, with uid/gid 0, empty owner names, mtime 0, mode 0644, no PAX fields,
+safe relative POSIX paths, and exact external manifest coverage. Result members
+use `results/<path_id>/<case_id>/<repeat_index>.json`; trace members use
+`traces/<path_id>/<case_id>/<repeat_index>.json`. Each matrix is exact—no
+missing coordinates, duplicates, or extras. The complete-pack validator
+reserializes every member map with the reference USTAR algorithm and requires
+byte equality, including standard USTAR headers, zero-filled file padding, two
+zero end blocks, and zero padding to the next 10,240-byte record. Validation
+reads member bytes without extracting them. A permitted-input manifest uses sorted lines of
 `sha256:<64 lowercase hex><two spaces><archive-relative path>` and ends with one
 newline.
 
@@ -175,7 +215,7 @@ Each record in the sealed input pack contains:
 
 ```json
 {
-  "schema_version": "agent-context-proof-case-v0.3.7",
+  "schema_version": "agent-context-proof-case-v0.3.8",
   "case_id": "blind_example_001",
   "family_id": "authority_rotation",
   "split": "blind_validation",
@@ -196,7 +236,7 @@ The matching sealed record contains an oracle payload of this shape:
 
 ```json
 {
-  "schema_version": "agent-context-proof-oracle-v0.3.7",
+  "schema_version": "agent-context-proof-oracle-v0.3.8",
   "case_id": "blind_example_001",
   "case_coordinate": {
     "organization": "org:orion",
@@ -333,7 +373,7 @@ At least two eligible annotators who did not implement either evaluated
 resolver independently apply the committed oracle-classification tables. Each
 annotation records the three output fields, the applicable `OA`, `OE`, and `V`
 rule IDs, the complete case coordinate, validation time, decisive provenance,
-and a deterministic rationale. The v0.3.7 record profile embeds exactly two
+and a deterministic rationale. The v0.3.8 record profile embeds exactly two
 full annotations in the sealed
 oracle record with a non-cryptographic declaration. An `OE` rule is required
 only after `OA1_VALID`; mechanism failure instead records only `V7` or `V8`.
@@ -392,11 +432,9 @@ the private audit log and replaced only before pack commitment. The leakage
 report remains hidden from implementers until after outputs are committed,
 because its predictions and cue descriptions may themselves disclose labels.
 
-## Pre-reveal structural validation
+## Pre-commitment and pre-run structural validation
 
-Before the input pack is revealed, implementers may check only the public
-commitment. After implementation freeze but before execution, the runner may
-check only:
+Before candidate-pack commitment, the coordinator validates:
 
 - archive and manifest integrity;
 - schema validity;
@@ -405,10 +443,12 @@ check only:
 - declared input completeness; and
 - that fixtures can be copied into isolated temporary directories.
 
-If a case fails these checks, its rejection and reason are recorded before any
-label is visible. It is excluded from the frozen experiment; no post-freeze
-replacement is allowed and no replacement may be tuned from observed model
-behavior.
+Only candidates that pass become members of the committed input and oracle
+packs. Before the input pack is revealed, implementers may check only the public
+commitment. After implementation freeze, the runner repeats the structural
+checks against the exact committed pack before execution. A defect in any
+committed case invalidates that experiment and requires a new candidate pack;
+the runner cannot exclude, replace, or repair one case in place.
 
 ## Immutable freeze, commitment, and reveal records
 
@@ -416,14 +456,17 @@ The workflow uses four object-bound phases:
 
 1. A `population-freeze` record binds the approved protocol, public commitment,
    both exact manifests, implementation commit, prompts, rules, environment,
-   models, every pre-execution exclusion, the final included case IDs, and the
-   input-reveal timestamp. Every exclusion precedes the freeze, and the freeze
-   strictly precedes input reveal.
+   models, an empty exclusion list, every committed case ID as included, one
+   repeat count, and the input-reveal timestamp. The freeze strictly precedes
+   input reveal.
 2. One `path-output-commitment` per declared model path binds that population,
-   output and trace digests, included-case and repeat counts, and commitment
-   time. `governed` and `retrieval_plus_rules` are always required.
-3. An `oracle-reveal` record binds the exact population and every output-record
-   digest. Every output commitment strictly precedes oracle reveal.
+   the exact canonical result and trace archives, both archive manifests,
+   included-case and repeat counts, and commitment time. `governed` and
+   `retrieval_plus_rules` are always required. Every result coordinate contains
+   either one complete result or one typed `MISSING`, `ERROR`, or
+   `SCHEMA_INVALID` failure, and binds the exact trace bytes for that coordinate.
+3. An `oracle-reveal` record binds the exact population and every path-output
+   commitment digest. Every output commitment strictly precedes oracle reveal.
 4. The final `freeze-reveal` receipt binds the preceding exact objects by
    digest. It cannot replace or retrospectively edit them.
 
@@ -440,9 +483,10 @@ Together those records must name or bind:
 - dependency lock or environment digest;
 - model identifiers and settings;
 - input-pack reveal timestamp;
-- all-path output and trace commitment digests and timestamps;
+- all-path result and trace archive and manifest digests, their complete raw
+  case × path × repeat matrices, and commitment timestamps;
 - oracle reveal timestamp; and
-- case exclusions decided before population freeze and the exact included set.
+- the empty committed-pack exclusion list and exact all-candidate included set.
 
 After reveal, changes to evaluated code, prompts, rules, cases, or labels create
 a new experiment version. They cannot be folded into the original v0.3 result.

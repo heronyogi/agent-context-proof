@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-"""Validate v0.3.7 protocol artifacts without model judgment."""
+"""Validate v0.3.8 protocol artifacts without model judgment."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import math
 import sys
 import tarfile
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -130,12 +130,15 @@ SCHEMA_FILES = {
     ),
     "oracle_record": DOCS / "oracle-record.v0.3.schema.json",
     "oracle_reveal_record": DOCS / "oracle-reveal-record.v0.3.schema.json",
+    "path_artifact_manifest": DOCS / "path-artifact-manifest.v0.3.schema.json",
     "pack_manifest": DOCS / "sealed-pack-manifest.v0.3.schema.json",
     "path_output_commitment": DOCS / "path-output-commitment.v0.3.schema.json",
+    "path_run_record": DOCS / "path-run-record.v0.3.schema.json",
     "population_freeze_record": DOCS / "population-freeze-record.v0.3.schema.json",
     "public_commitment": DOCS / "public-commitment.v0.3.schema.json",
     "relatedness_graph": DOCS / "relatedness-graph.v0.3.schema.json",
     "result_record": DOCS / "result-record.v0.3.schema.json",
+    "trace_record": DOCS / "trace-record.v0.3.schema.json",
 }
 REGISTRY_FILES = [
     DOCS / "protocol-artifact-defs.v0.3.schema.json",
@@ -160,6 +163,28 @@ def _object_without_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _normalize_json_numbers(value: Any, location: str = "$") -> Any:
+    if isinstance(value, Decimal):
+        if (
+            not value.is_finite()
+            or value != value.to_integral_value()
+            or abs(value) > SAFE_INTEGER
+        ):
+            raise StructuralValidationError(f"unsafe number at {location}")
+        return int(value)
+    if isinstance(value, list):
+        return [
+            _normalize_json_numbers(item, f"{location}[{index}]")
+            for index, item in enumerate(value)
+        ]
+    if isinstance(value, dict):
+        return {
+            key: _normalize_json_numbers(item, f"{location}.{key}")
+            for key, item in value.items()
+        }
+    return value
+
+
 def _check_ijson(value: Any, location: str = "$") -> None:
     if isinstance(value, str):
         if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
@@ -172,9 +197,7 @@ def _check_ijson(value: Any, location: str = "$") -> None:
             raise StructuralValidationError(f"unsafe integer at {location}")
         return
     if isinstance(value, float):
-        if not math.isfinite(value):
-            raise StructuralValidationError(f"non-finite number at {location}")
-        return
+        raise StructuralValidationError(f"unsafe number at {location}")
     if isinstance(value, list):
         for index, item in enumerate(value):
             _check_ijson(item, f"{location}[{index}]")
@@ -193,9 +216,12 @@ def parse_strict_json_bytes(data: bytes, label: str) -> dict[str, Any]:
             data.decode("utf-8"),
             object_pairs_hook=_object_without_duplicates,
             parse_constant=_reject_constant,
+            parse_float=Decimal,
+            parse_int=Decimal,
         )
     except (UnicodeError, json.JSONDecodeError) as error:
         raise StructuralValidationError(f"{label}: {error}") from error
+    value = _normalize_json_numbers(value)
     _check_ijson(value)
     if not isinstance(value, dict):
         raise StructuralValidationError(f"{label}: top-level value must be an object")
@@ -493,11 +519,13 @@ def _validate_oracle_record(value: dict[str, Any]) -> None:
         raise StructuralValidationError(
             "oracle record must equal the adjudicated oracle payload"
         )
-    if adjudication["resolution"] == "EXACT_AGREEMENT" and any(
-        item["annotation"] != value["oracle"] for item in value["annotations"]
-    ):
+    annotations_agree = all(
+        item["annotation"] == value["oracle"] for item in value["annotations"]
+    )
+    if (adjudication["resolution"] == "EXACT_AGREEMENT") != annotations_agree:
         raise StructuralValidationError(
-            "EXACT_AGREEMENT requires both annotations to equal the final oracle"
+            "EXACT_AGREEMENT is required exactly when both annotations equal "
+            "the final oracle"
         )
 
 
@@ -513,6 +541,10 @@ def _validate_authorship(value: dict[str, Any]) -> None:
         ),
         "shared_sources",
     )
+    _require_unique(
+        (item["path"] for item in value["shared_sources"]),
+        "shared source path",
+    )
     _require_sorted(
         value["coordination_disclosures"],
         sorted(
@@ -521,6 +553,20 @@ def _validate_authorship(value: dict[str, Any]) -> None:
         ),
         "coordination_disclosures",
     )
+    _require_unique(
+        (
+            f"{item['related_family_id']}\0{item['evidence_sha256']}"
+            for item in value["coordination_disclosures"]
+        ),
+        "coordination disclosure",
+    )
+    if any(
+        item["related_family_id"] == value["family_id"]
+        for item in value["coordination_disclosures"]
+    ):
+        raise StructuralValidationError(
+            "coordination disclosure cannot target its own family"
+        )
 
 
 def _graph_components(
@@ -562,6 +608,10 @@ def _validate_relatedness_graph(value: dict[str, Any]) -> None:
             sorted(edge["relation_types"]),
             "edge relation_types",
         )
+    _require_unique(
+        ("\0".join(item["family_ids"]) for item in value["edges"]),
+        "relatedness family pair",
+    )
     _require_sorted(
         value["edges"],
         sorted(
@@ -635,7 +685,7 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
                 raise StructuralValidationError(
                     f"lineage head tuple mismatch: {head['entry_id']}"
                 )
-    elif kind == "pack_manifest":
+    elif kind in {"pack_manifest", "path_artifact_manifest"}:
         entries = value["entries"]
         paths = [item["path"] for item in entries]
         _require_unique(paths, "manifest path")
@@ -661,6 +711,28 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
         )
         _validate_provenance(value["provenance"])
         _validate_output_contract(value, oracle=False)
+    elif kind == "path_run_record":
+        if value["run_status"] == "COMPLETE":
+            result = value["result"]
+            if any(
+                result[field] != value[field]
+                for field in ("case_id", "path_id", "repeat_index", "trace_sha256")
+            ):
+                raise StructuralValidationError(
+                    "complete path run identity must match its nested result"
+                )
+            _semantic_validate("result_record", result)
+    elif kind == "trace_record":
+        events = value["events"]
+        if [item["sequence"] for item in events] != list(range(len(events))):
+            raise StructuralValidationError(
+                "trace event sequence must be contiguous from zero"
+            )
+        event_times = [_timestamp(item["observed_at"]) for item in events]
+        if event_times != sorted(event_times):
+            raise StructuralValidationError(
+                "trace events must be in nondecreasing observed_at order"
+            )
     elif kind == "authorship_attestation":
         _validate_authorship(value)
     elif kind == "authorship_collection":
@@ -697,15 +769,10 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
             sorted(value["models"], key=lambda item: item["path_id"]),
             "models",
         )
-        _require_unique(
-            (item["case_id"] for item in value["case_exclusions"]),
-            "excluded case_id",
-        )
-        _require_sorted(
-            value["case_exclusions"],
-            sorted(value["case_exclusions"], key=lambda item: item["case_id"]),
-            "case exclusions",
-        )
+        if value["case_exclusions"]:
+            raise StructuralValidationError(
+                "a committed v0.3.8 candidate pack cannot exclude individual cases"
+            )
         _require_sorted(
             value["included_case_ids"],
             sorted(value["included_case_ids"]),
@@ -829,7 +896,7 @@ def _load_canonical_ustar(path: Path) -> tuple[bytes, dict[str, bytes]]:
 def _verify_manifest(
     manifest: dict[str, Any], archive_bytes: bytes, files: dict[str, bytes]
 ) -> None:
-    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.7":
+    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.8":
         raise StructuralValidationError("unsupported archive format")
     if manifest["archive_sha256"] != _sha256_bytes(archive_bytes):
         raise StructuralValidationError("manifest archive digest mismatch")
@@ -969,7 +1036,49 @@ def _validate_case_provenance(
             raise StructuralValidationError(
                 f"{case['case_id']}: claim_entry_id must resolve to a claim"
             )
-        if claim_record["value"]["issuer_id"] != chain["issuer_id"]:
+        current_id = chain_ids[0]
+        current_issuer = first_chain_record["value"]["issuer_id"]
+        for introduction_id in chain_ids[1:-1]:
+            introduction = records.get(introduction_id)
+            if introduction is None or introduction["kind"] not in {
+                "delegation",
+                "rotation",
+                "recovery",
+            }:
+                raise StructuralValidationError(
+                    f"{case['case_id']}: claim chain contains a non-introduction "
+                    f"side dependency: {introduction_id}"
+                )
+            item = introduction["value"]
+            if introduction["kind"] == "delegation":
+                if item["issuer_id"] != current_issuer:
+                    raise StructuralValidationError(
+                        f"{case['case_id']}: disconnected delegation in claim chain"
+                    )
+                current_issuer = item["subject_issuer_id"]
+            elif introduction["kind"] == "rotation":
+                if (
+                    item["issuer_id"] != current_issuer
+                    or item["predecessor_entry_id"] != current_id
+                ):
+                    raise StructuralValidationError(
+                        f"{case['case_id']}: disconnected rotation in claim chain"
+                    )
+                current_issuer = item["successor_issuer_id"]
+            else:
+                if (
+                    item["compromised_issuer_id"] != current_issuer
+                    or item["predecessor_entry_id"] != current_id
+                ):
+                    raise StructuralValidationError(
+                        f"{case['case_id']}: disconnected recovery in claim chain"
+                    )
+                current_issuer = item["replacement_issuer_id"]
+            current_id = introduction_id
+        if (
+            claim_record["value"]["issuer_id"] != current_issuer
+            or chain["issuer_id"] != current_issuer
+        ):
             raise StructuralValidationError(
                 f"{case['case_id']}: authority chain issuer_id mismatch"
             )
@@ -985,6 +1094,10 @@ def _validate_case_provenance(
             ):
                 raise StructuralValidationError(
                     f"{case['case_id']}: authority chain record mismatch: {record_id}"
+                )
+            if record_id not in decisive_ids:
+                raise StructuralValidationError(
+                    f"{case['case_id']}: authority chain contains a nondecisive record"
                 )
 
     dependency_pairs: set[tuple[str, str]] = set()
@@ -1066,10 +1179,8 @@ def _validate_authorship_graph(
         raise StructuralValidationError(
             "authorship and relatedness family sets must be identical"
         )
-    graph_edges = {
-        tuple(item["family_ids"]): set(item["relation_types"])
-        for item in graph["edges"]
-    }
+    graph_edges = {tuple(item["family_ids"]): item for item in graph["edges"]}
+    expected_edges: dict[tuple[str, str], dict[str, Any]] = {}
     family_ids = sorted(by_family)
     for index, left_id in enumerate(family_ids):
         left = by_family[left_id]
@@ -1087,25 +1198,119 @@ def _validate_authorship_graph(
                 for item in right["shared_sources"]
                 if item["outcome_determining"]
             }
-            required: set[str] = set()
-            if left_authors & right_authors:
-                required.add("SHARED_AUTHOR")
-            if left_sources & right_sources:
-                required.add("OUTCOME_DETERMINING_SOURCE")
-            if any(
-                item["related_family_id"] == right_id
-                and item["expected_outcomes_discussed"]
-                for item in left["coordination_disclosures"]
-            ) or any(
-                item["related_family_id"] == left_id
-                and item["expected_outcomes_discussed"]
-                for item in right["coordination_disclosures"]
-            ):
-                required.add("EXPECTED_OUTCOME_COORDINATION")
-            if not required <= graph_edges.get((left_id, right_id), set()):
-                raise StructuralValidationError(
-                    f"relatedness graph omits required edge for {left_id}, {right_id}"
-                )
+            shared_authors = sorted(left_authors & right_authors)
+            shared_sources = sorted(left_sources & right_sources)
+            coordination_evidence = sorted(
+                {
+                    item["evidence_sha256"]
+                    for item in left["coordination_disclosures"]
+                    if item["related_family_id"] == right_id
+                    and item["expected_outcomes_discussed"]
+                }
+                | {
+                    item["evidence_sha256"]
+                    for item in right["coordination_disclosures"]
+                    if item["related_family_id"] == left_id
+                    and item["expected_outcomes_discussed"]
+                }
+            )
+            relation_types: list[str] = []
+            if coordination_evidence:
+                relation_types.append("EXPECTED_OUTCOME_COORDINATION")
+            if shared_sources:
+                relation_types.append("OUTCOME_DETERMINING_SOURCE")
+            if shared_authors:
+                relation_types.append("SHARED_AUTHOR")
+            relation_types.sort()
+            if not relation_types:
+                continue
+            evidence = {
+                "coordination_evidence_sha256s": coordination_evidence,
+                "family_ids": [left_id, right_id],
+                "outcome_determining_source_sha256s": shared_sources,
+                "shared_author_ids": shared_authors,
+            }
+            expected_edges[(left_id, right_id)] = {
+                "family_ids": [left_id, right_id],
+                "relation_types": relation_types,
+                "evidence_sha256": _jcs_sha256(evidence),
+            }
+    if graph_edges != expected_edges:
+        raise StructuralValidationError(
+            "relatedness edges must exactly equal the canonical disclosed facts"
+        )
+
+
+def _load_path_artifacts(
+    *,
+    manifest_paths: list[Path],
+    archive_paths: list[Path],
+    artifact_type: str,
+    population_digest: str,
+    case_count: int,
+    repeat_count: int,
+    registry: Registry,
+    validators: dict[str, Draft202012Validator],
+) -> dict[str, dict[str, Any]]:
+    archives: dict[str, tuple[bytes, dict[str, bytes]]] = {}
+    for archive_path in archive_paths:
+        archive_bytes, files = _load_canonical_ustar(archive_path)
+        digest = _sha256_bytes(archive_bytes)
+        if digest in archives:
+            raise StructuralValidationError(
+                f"duplicate {artifact_type} archive digest: {digest}"
+            )
+        archives[digest] = (archive_bytes, files)
+
+    artifact_sets: dict[str, dict[str, Any]] = {}
+    referenced_archives: set[str] = set()
+    for manifest_path in manifest_paths:
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = parse_strict_json_bytes(manifest_bytes, str(manifest_path))
+        _validate_value(
+            "path_artifact_manifest",
+            manifest,
+            str(manifest_path),
+            registry,
+            validators,
+        )
+        if manifest["artifact_type"] != artifact_type:
+            raise StructuralValidationError(
+                f"{manifest_path}: expected artifact_type {artifact_type}"
+            )
+        if (
+            manifest["population_freeze_sha256"] != population_digest
+            or manifest["case_count"] != case_count
+            or manifest["repeat_count"] != repeat_count
+        ):
+            raise StructuralValidationError(
+                f"{manifest_path}: path manifest does not match frozen population"
+            )
+        path_id = manifest["path_id"]
+        if path_id in artifact_sets:
+            raise StructuralValidationError(
+                f"duplicate {artifact_type} manifest path_id: {path_id}"
+            )
+        archive_digest = manifest["archive_sha256"]
+        resolved = archives.get(archive_digest)
+        if resolved is None:
+            raise StructuralValidationError(
+                f"{manifest_path}: path manifest archive was not supplied"
+            )
+        archive_bytes, files = resolved
+        _verify_manifest(manifest, archive_bytes, files)
+        artifact_sets[path_id] = {
+            "archive_bytes": archive_bytes,
+            "files": files,
+            "manifest": manifest,
+            "manifest_bytes": manifest_bytes,
+        }
+        referenced_archives.add(archive_digest)
+    if referenced_archives != set(archives):
+        raise StructuralValidationError(
+            f"{artifact_type} manifests must exactly cover supplied archives"
+        )
+    return artifact_sets
 
 
 def validate_complete_pack(
@@ -1117,6 +1322,10 @@ def validate_complete_pack(
     oracle_manifest_path: Path,
     population_freeze_path: Path,
     output_commitment_paths: list[Path],
+    result_archive_paths: list[Path],
+    result_manifest_paths: list[Path],
+    trace_archive_paths: list[Path],
+    trace_manifest_paths: list[Path],
     oracle_reveal_path: Path,
     freeze_reveal_path: Path,
 ) -> None:
@@ -1376,28 +1585,25 @@ def validate_complete_pack(
         != public_commitment["approved_protocol_commit"]
     ):
         raise StructuralValidationError("protocol commit mismatch across phase records")
-    excluded_ids = {item["case_id"] for item in population["case_exclusions"]}
-    if not excluded_ids <= case_ids:
-        raise StructuralValidationError("population freeze excludes an unknown case")
-    included_ids = sorted(case_ids - excluded_ids)
+    if population["case_exclusions"]:
+        raise StructuralValidationError(
+            "a committed candidate defect invalidates the whole experiment"
+        )
+    included_ids = sorted(case_ids)
     if population["included_case_ids"] != included_ids:
         raise StructuralValidationError(
             "included_case_ids do not equal candidates minus exclusions"
         )
-    population_core = {"included_case_ids": included_ids}
+    population_core = {
+        "included_case_ids": included_ids,
+        "repeat_count": population["repeat_count"],
+    }
     if population["population_sha256"] != _jcs_sha256(population_core):
         raise StructuralValidationError("population digest mismatch")
     frozen_at = _timestamp(population["frozen_at"])
     input_revealed_at = _timestamp(population["input_pack_revealed_at"])
     if frozen_at >= input_revealed_at:
         raise StructuralValidationError("population must freeze before input reveal")
-    if any(
-        _timestamp(item["recorded_at"]) > frozen_at
-        for item in population["case_exclusions"]
-    ):
-        raise StructuralValidationError(
-            "every exclusion must precede population freeze"
-        )
     included_cases = [item for item in cases if item["case_id"] in included_ids]
     included_families = {item["family_id"] for item in included_cases}
     author_by_family = {
@@ -1415,7 +1621,7 @@ def validate_complete_pack(
         or len(included_clusters) < 4
     ):
         raise StructuralValidationError(
-            "post-exclusion population is below a protocol floor"
+            "complete committed population is below a protocol floor"
         )
     if any(item["implementation_roles"] for item in authorship["records"]):
         raise StructuralValidationError(
@@ -1423,6 +1629,120 @@ def validate_complete_pack(
         )
 
     population_digest = _sha256_bytes(population_bytes)
+    model_by_path = {item["path_id"]: item for item in population["models"]}
+    model_paths = set(model_by_path)
+    if not {"governed", "retrieval_plus_rules"} <= model_paths:
+        raise StructuralValidationError("required evaluated paths are missing")
+    if (
+        model_by_path["governed"]["observer_rules_sha256"]
+        != population["governed_rules_sha256"]
+        or model_by_path["retrieval_plus_rules"]["observer_rules_sha256"]
+        != population["comparator_rules_sha256"]
+    ):
+        raise StructuralValidationError(
+            "required path observers do not bind their frozen rule sets"
+        )
+
+    result_sets = _load_path_artifacts(
+        manifest_paths=result_manifest_paths,
+        archive_paths=result_archive_paths,
+        artifact_type="result_records",
+        population_digest=population_digest,
+        case_count=len(included_ids),
+        repeat_count=population["repeat_count"],
+        registry=registry,
+        validators=validators,
+    )
+    trace_sets = _load_path_artifacts(
+        manifest_paths=trace_manifest_paths,
+        archive_paths=trace_archive_paths,
+        artifact_type="trace_records",
+        population_digest=population_digest,
+        case_count=len(included_ids),
+        repeat_count=population["repeat_count"],
+        registry=registry,
+        validators=validators,
+    )
+    if set(result_sets) != model_paths or set(trace_sets) != model_paths:
+        raise StructuralValidationError(
+            "result and trace archives must exactly cover frozen model paths"
+        )
+
+    cases_by_id = {item["case_id"]: item for item in included_cases}
+    expected_coordinates = {
+        (case_id, repeat_index)
+        for case_id in included_ids
+        for repeat_index in range(population["repeat_count"])
+    }
+    for path_id in sorted(model_paths):
+        result_files = result_sets[path_id]["files"]
+        trace_files = trace_sets[path_id]["files"]
+        expected_result_paths = {
+            f"results/{path_id}/{case_id}/{repeat_index}.json"
+            for case_id, repeat_index in expected_coordinates
+        }
+        expected_trace_paths = {
+            f"traces/{path_id}/{case_id}/{repeat_index}.json"
+            for case_id, repeat_index in expected_coordinates
+        }
+        if set(result_files) != expected_result_paths:
+            raise StructuralValidationError(
+                f"{path_id}: result archive does not contain the exact "
+                "case-repeat matrix"
+            )
+        if set(trace_files) != expected_trace_paths:
+            raise StructuralValidationError(
+                f"{path_id}: trace archive does not contain the exact "
+                "case-repeat matrix"
+            )
+
+        parsed_traces: dict[tuple[str, int], dict[str, Any]] = {}
+        for case_id, repeat_index in sorted(expected_coordinates):
+            trace_path = f"traces/{path_id}/{case_id}/{repeat_index}.json"
+            trace = parse_strict_json_bytes(trace_files[trace_path], trace_path)
+            _validate_value("trace_record", trace, trace_path, registry, validators)
+            if (
+                trace["case_id"] != case_id
+                or trace["path_id"] != path_id
+                or trace["repeat_index"] != repeat_index
+                or trace["observer_rules_sha256"]
+                != model_by_path[path_id]["observer_rules_sha256"]
+            ):
+                raise StructuralValidationError(
+                    f"{trace_path}: trace does not match its frozen coordinate"
+                )
+            if any(
+                _timestamp(event["observed_at"]) < input_revealed_at
+                for event in trace["events"]
+            ):
+                raise StructuralValidationError(
+                    f"{trace_path}: trace event precedes input reveal"
+                )
+            parsed_traces[(case_id, repeat_index)] = trace
+
+            result_path = f"results/{path_id}/{case_id}/{repeat_index}.json"
+            run = parse_strict_json_bytes(result_files[result_path], result_path)
+            _validate_value("path_run_record", run, result_path, registry, validators)
+            if (
+                run["case_id"] != case_id
+                or run["path_id"] != path_id
+                or run["repeat_index"] != repeat_index
+                or run["trace_sha256"] != _sha256_bytes(trace_files[trace_path])
+            ):
+                raise StructuralValidationError(
+                    f"{result_path}: path run does not bind its exact trace"
+                )
+            if run["run_status"] == "COMPLETE":
+                _validate_case_provenance(
+                    cases_by_id[case_id],
+                    {"oracle": run["result"]},
+                    input_files,
+                    permitted_by_case[case_id],
+                    registry,
+                    validators,
+                )
+        trace_sets[path_id]["parsed_traces"] = parsed_traces
+
     commitments: list[tuple[dict[str, Any], bytes]] = []
     for path in output_commitment_paths:
         data = path.read_bytes()
@@ -1432,9 +1752,6 @@ def validate_complete_pack(
         )
         commitments.append((value, data))
     _require_unique((item[0]["path_id"] for item in commitments), "output path_id")
-    model_paths = {item["path_id"] for item in population["models"]}
-    if not {"governed", "retrieval_plus_rules"} <= model_paths:
-        raise StructuralValidationError("required evaluated paths are missing")
     if {item[0]["path_id"] for item in commitments} != model_paths:
         raise StructuralValidationError(
             "output commitments must exactly cover model paths"
@@ -1444,10 +1761,34 @@ def validate_complete_pack(
             commitment["experiment_id"] != population["experiment_id"]
             or commitment["population_freeze_sha256"] != population_digest
             or commitment["included_case_count"] != len(included_ids)
+            or commitment["repeat_count"] != population["repeat_count"]
             or _timestamp(commitment["committed_at"]) < input_revealed_at
         ):
             raise StructuralValidationError(
                 "output commitment does not match frozen run"
+            )
+        path_id = commitment["path_id"]
+        result_set = result_sets[path_id]
+        trace_set = trace_sets[path_id]
+        if (
+            commitment["outputs_sha256"] != _sha256_bytes(result_set["archive_bytes"])
+            or commitment["outputs_manifest_sha256"]
+            != _sha256_bytes(result_set["manifest_bytes"])
+            or commitment["traces_sha256"] != _sha256_bytes(trace_set["archive_bytes"])
+            or commitment["traces_manifest_sha256"]
+            != _sha256_bytes(trace_set["manifest_bytes"])
+        ):
+            raise StructuralValidationError(
+                f"{path_id}: output commitment does not bind exact artifacts"
+            )
+        committed_at = _timestamp(commitment["committed_at"])
+        if any(
+            _timestamp(event["observed_at"]) > committed_at
+            for trace in trace_set["parsed_traces"].values()
+            for event in trace["events"]
+        ):
+            raise StructuralValidationError(
+                f"{path_id}: trace event occurs after output commitment"
             )
     commitment_digests = sorted(_sha256_bytes(data) for _, data in commitments)
 
@@ -1514,6 +1855,21 @@ def validate_artifacts(assignments: list[tuple[str, Path]]) -> None:
         (item["family_id"] for item in grouped["authorship_attestation"]),
         "authorship family_id",
     )
+    _require_unique(
+        (
+            f"{item['artifact_type']}\0{item['path_id']}"
+            for item in grouped["path_artifact_manifest"]
+        ),
+        "path artifact manifest coordinate",
+    )
+    for kind in ("path_run_record", "result_record", "trace_record"):
+        _require_unique(
+            (
+                f"{item['path_id']}\0{item['case_id']}\0{item['repeat_index']}"
+                for item in grouped[kind]
+            ),
+            f"{kind} coordinate",
+        )
 
     cases = grouped["case_record"]
     oracles = grouped["oracle_record"]
@@ -1655,7 +2011,7 @@ def _assignment(value: str) -> tuple[str, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate v0.3.7 record shapes or one complete sealed workflow."
+        description="Validate v0.3.8 record shapes or one complete sealed workflow."
     )
     subparsers = parser.add_subparsers(dest="mode", required=True)
     record_parser = subparsers.add_parser(
@@ -1693,6 +2049,19 @@ def main() -> int:
         required=True,
         dest="output_commitments",
     )
+    for option in (
+        "result_archive",
+        "result_manifest",
+        "trace_archive",
+        "trace_manifest",
+    ):
+        complete_parser.add_argument(
+            "--" + option.replace("_", "-"),
+            type=Path,
+            action="append",
+            required=True,
+            dest=option + "s",
+        )
     args = parser.parse_args()
     try:
         if args.mode == "record":
@@ -1709,6 +2078,12 @@ def main() -> int:
                 output_commitment_paths=[
                     item.resolve() for item in args.output_commitments
                 ],
+                result_archive_paths=[item.resolve() for item in args.result_archives],
+                result_manifest_paths=[
+                    item.resolve() for item in args.result_manifests
+                ],
+                trace_archive_paths=[item.resolve() for item in args.trace_archives],
+                trace_manifest_paths=[item.resolve() for item in args.trace_manifests],
                 oracle_reveal_path=args.oracle_reveal.resolve(),
                 freeze_reveal_path=args.freeze_reveal.resolve(),
             )

@@ -169,7 +169,7 @@ coordinate.
 
 | Rule ID | Normative operation |
 | --- | --- |
-| `L1_PARSE` | Parse strict I-JSON, rejecting duplicate member names, malformed Unicode, non-finite numbers, and unsafe numeric values. |
+| `L1_PARSE` | Parse strict I-JSON, rejecting duplicate member names and malformed Unicode. Accept only numeric values that are mathematically integral and within [-9007199254740991, 9007199254740991], independent of integer, decimal, or exponent spelling; normalize every accepted numeric form to that exact integer before schema validation and JCS canonicalization. |
 | `L2_SCHEMA` | Validate the bundle and every entry against the committed v0.3 schemas before using any field. |
 | `L3_BUNDLE_INVARIANTS` | Reject duplicate anchor or entry IDs and require exactly one lineage-head pin per lineage_id; any duplicate lineage_id is INVALID even if the duplicate pins are byte-identical. |
 | `L4_CANONICALIZE` | Remove exactly the top-level signature member and compute the RFC 8785 JCS UTF-8 payload and its SHA-256 digest. |
@@ -400,7 +400,7 @@ The rules below are normative and mirrored in the machine protocol.
 | --- | --- |
 | `PV1_REACHED_STAGES` | Record exact paths, record IDs, and digests for every evaluation stage reached; list every stage skipped by an earlier terminal classification in unevaluated_stages. |
 | `PV2_AUTHORITY_CHAIN` | Each decisive authority claim records issuer_id, claim_entry_id, chain_sha256, and ordered records from its trust anchor through the claim, with the RFC 8785 payload SHA-256 for every record. chain_sha256 is SHA-256 of the RFC 8785 JCS object containing exactly issuer_id, claim_entry_id, and records. At least one chain is required whenever authority_status is VALID or CONFLICT. |
-| `PV3_AUTHORITY_DEPENDENCIES` | Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list; no side dependency may be appended to a claim chain. |
+| `PV3_AUTHORITY_DEPENDENCIES` | Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list naming claim endpoints only. A claim chain may contain only its connected authority-introduction spine—delegation, rotation, or recovery—between the external anchor and claim; precedence and revocation side dependencies are never appended. |
 | `PV4_CONFLICT_COVERAGE` | AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid. |
 | `PV5_SHORT_CIRCUIT` | When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance. |
 | `PV6_BUNDLE_COVERAGE` | authority_evaluation_records contains every trust anchor, recovery anchor, and signed entry in the exact authority bundle once, with its recomputed payload digest, classification, and decisive flag; every reported chain or dependency resolves to that closed index, every claim endpoint is decisive, and required dependency types are present. |
@@ -412,10 +412,12 @@ the decisive claim. Every record carries its ID and SHA-256 of the UTF-8 RFC
 identity introductions, lineage-head pins, precedence edges, recoveries, and
 revocations are separate `authority_dependencies` records. Each dependency
 records its type, record ID and digest, its semantic authorization path, and a
-`decisive_for` list naming the claim or dependency record IDs whose resolved
-state it determines. This is a canonical dependency representation: a
-precedence, recovery, or revocation record is never appended to a linear claim
-chain. Contract and evidence provenance records use exact permitted-input paths
+`decisive_for` list naming the claim endpoint record IDs whose resolved state it
+determines. This is a canonical dependency representation: a connected
+delegation, rotation, or recovery that introduces the claim signer appears on
+the linear claim spine and also receives its separately typed dependency
+record; precedence and revocation records never appear on that spine. Contract
+and evidence provenance records use exact permitted-input paths
 and byte digests.
 All paths are relative POSIX paths without dot segments and must appear in the
 permitted-input manifest. Evaluation stage order is authority, contract, then
@@ -509,9 +511,37 @@ must continue to be labeled a reasoning baseline, not retrieval-plus-rules.
   output and trace digest is committed.
 - Each case runs from a fresh isolated copy.
 - Model-backed paths use the same repeat count and explicitly recorded settings.
-- Any case rejected for schema or fixture defects is rejected before labels are
-  revealed and reported with its reason.
+- Any case rejected for schema, leakage, or fixture defects is rejected before
+  the input pack is committed. A defect discovered in a committed candidate
+  pack invalidates the whole experiment and requires a new pack; it cannot
+  selectively remove that case.
 - Comparator underperformance is not required for the governed proof to pass.
+
+## Result and trace closure
+
+The frozen `repeat_count` applies to every declared path. Each path publishes
+one canonical result archive, one canonical trace archive, and one exact
+manifest for each. The result archive contains exactly one `path-run` record for
+every included case × repeat coordinate; the trace archive contains exactly one
+matching trace record for every coordinate. Canonical member paths are
+`results/<path_id>/<case_id>/<repeat_index>.json` and
+`traces/<path_id>/<case_id>/<repeat_index>.json`. Missing coordinates,
+duplicates, extras, or cross-coordinate bindings are invalid.
+
+A `COMPLETE` path-run record embeds one schema-valid result and binds the exact
+trace bytes by SHA-256. A `MISSING`, `ERROR`, or `SCHEMA_INVALID` run carries a
+typed failure code and failure-detail digest instead of a result; it remains in
+the matrix and cannot become an exclusion. Every trace binds its case, path,
+repeat, frozen observer-rule digest, contiguous event sequence, and event
+payload digests. Trace events cannot precede input reveal or occur after the
+path's output commitment.
+
+The complete-pack validator recomputes all four archive and manifest digests,
+requires exact population/path/repeat coverage, resolves provenance for every
+complete result against permitted case inputs, and verifies the ordered phase
+bindings. Structural validity is not a pass claim. A typed governed failure or
+unequal governed result across repeats remains visible and makes the pass
+conditions false; comparator failures remain visible coverage failures.
 
 ## Scoring population
 
@@ -521,14 +551,14 @@ protocol.
 | Rule ID | Normative rule |
 | --- | --- |
 | `P1_CANDIDATES` | The candidate population is every case ID in the digest-committed sealed input pack. |
-| `P2_INCLUDE` | Include a candidate only when it passed blinded leakage review before pack commitment and passes structural validation before any path executes. |
-| `P3_EXCLUDE` | Freeze exclusions, reasons, and their digest before first path execution and oracle reveal; publish every exclusion. |
+| `P2_INCLUDE` | Commit a candidate only after it passed blinded leakage review and closed structural validation. Every committed candidate is included. |
+| `P3_EXCLUDE` | Individual exclusions from a committed candidate pack are prohibited. A later-discovered pack defect invalidates the experiment and requires a newly committed pack. |
 | `P4_DENOMINATOR` | Every evaluated case means every included unique case ID, and that fixed set is the governed case-accuracy denominator. |
 | `P5_GOVERNED_FAILURE` | A missing, errored, or schema-invalid governed output is a failed included case and never an exclusion. |
 | `P6_REPEATS` | Every governed repeat must match; case accuracy uses unique cases while the raw repeat matrix is reported separately. |
 | `P7_COMPARATORS` | Run required comparators on the same included cases and report missing outputs and all metrics, but comparator accuracy never changes governed pass or fail. |
 | `P8_NO_POST_REVEAL` | No output, trace, model behavior, or revealed oracle label may cause exclusion from the frozen population. |
-| `P9_FLOORS` | No pass claim is permitted unless at least twelve cases, four eligible primary authors, and four independence clusters remain after exclusions. |
+| `P9_FLOORS` | No candidate pack may be committed and no pass claim is permitted unless the complete committed population has at least twelve cases, four eligible primary authors, and four independence clusters. |
 
 The governed path is the only proof-gating path. The independent
 retrieval-plus-rules comparator is required to run and report coverage on the
@@ -590,8 +620,9 @@ only if:
 7. the oracle pack remains sealed until every path's output and trace digest is
    committed;
 8. every included blind case passed the pre-commitment blinded leakage review;
-9. at least four eligible primary authors and four independence clusters remain
-   after conflict and shared-source adjudication; and
+9. the complete committed population contains at least four eligible primary
+   authors and four independence clusters after conflict and shared-source
+   adjudication; and
 10. the compact result is bound to all case, prompt, rule, code, authority-ledger,
     and trust-input digests;
 11. every included governed repeat matches and a missing or errored governed
