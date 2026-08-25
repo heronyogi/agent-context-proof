@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate v0.3.8 protocol artifacts without model judgment."""
+"""Validate v0.3.9 protocol artifacts without model judgment."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import tarfile
 from collections import defaultdict
 from collections.abc import Iterable
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, DecimalException
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -165,11 +165,15 @@ def _object_without_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 def _normalize_json_numbers(value: Any, location: str = "$") -> Any:
     if isinstance(value, Decimal):
-        if (
-            not value.is_finite()
-            or value != value.to_integral_value()
-            or abs(value) > SAFE_INTEGER
-        ):
+        try:
+            is_unsafe = (
+                not value.is_finite()
+                or value != value.to_integral_value()
+                or abs(value) > SAFE_INTEGER
+            )
+        except DecimalException as error:
+            raise StructuralValidationError(f"unsafe number at {location}") from error
+        if is_unsafe:
             raise StructuralValidationError(f"unsafe number at {location}")
         return int(value)
     if isinstance(value, list):
@@ -219,6 +223,8 @@ def parse_strict_json_bytes(data: bytes, label: str) -> dict[str, Any]:
             parse_float=Decimal,
             parse_int=Decimal,
         )
+    except DecimalException as error:
+        raise StructuralValidationError(f"unsafe number in {label}") from error
     except (UnicodeError, json.JSONDecodeError) as error:
         raise StructuralValidationError(f"{label}: {error}") from error
     value = _normalize_json_numbers(value)
@@ -373,13 +379,6 @@ def _validate_provenance(provenance: dict[str, Any]) -> None:
         ),
         "authority_dependencies",
     )
-    for dependency in dependencies:
-        decisive_for = dependency["decisive_for"]
-        _require_sorted(
-            decisive_for,
-            sorted(decisive_for),
-            f"decisive_for in {dependency['record_id']}",
-        )
     for field in ("contract_records", "evidence_records"):
         records = provenance[field]
         _require_sorted(
@@ -665,7 +664,7 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
                     f"lineage head does not resolve exactly: {head['entry_id']}"
                 )
             record = resolved["value"]
-            if resolved["kind"] == "anchor":
+            if resolved["kind"] == "trust_anchor":
                 lineage_id = record["lineage_id"]
                 epoch = record["epoch"]
             elif resolved["kind"] == "delegation":
@@ -771,7 +770,7 @@ def _semantic_validate(kind: str, value: dict[str, Any]) -> None:
         )
         if value["case_exclusions"]:
             raise StructuralValidationError(
-                "a committed v0.3.8 candidate pack cannot exclude individual cases"
+                "a committed v0.3.9 candidate pack cannot exclude individual cases"
             )
         _require_sorted(
             value["included_case_ids"],
@@ -896,7 +895,7 @@ def _load_canonical_ustar(path: Path) -> tuple[bytes, dict[str, bytes]]:
 def _verify_manifest(
     manifest: dict[str, Any], archive_bytes: bytes, files: dict[str, bytes]
 ) -> None:
-    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.8":
+    if manifest["archive_format"] != "USTAR_CANONICAL_V0.3.9":
         raise StructuralValidationError("unsupported archive format")
     if manifest["archive_sha256"] != _sha256_bytes(archive_bytes):
         raise StructuralValidationError("manifest archive digest mismatch")
@@ -942,12 +941,13 @@ def _record_index(
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     records: dict[str, dict[str, Any]] = {}
     digests: dict[str, str] = {}
-    for anchor in [
-        *authority_bundle["trust_anchors"],
-        *authority_bundle["recovery_trust_anchors"],
-    ]:
+    for anchor in authority_bundle["trust_anchors"]:
         record_id = anchor["anchor_id"]
-        records[record_id] = {"kind": "anchor", "value": anchor}
+        records[record_id] = {"kind": "trust_anchor", "value": anchor}
+        digests[record_id] = _jcs_sha256(anchor)
+    for anchor in authority_bundle["recovery_trust_anchors"]:
+        record_id = anchor["anchor_id"]
+        records[record_id] = {"kind": "recovery_anchor", "value": anchor}
         digests[record_id] = _jcs_sha256(anchor)
     for entry in authority_bundle["entries"]:
         record_id = entry["entry_id"]
@@ -956,6 +956,109 @@ def _record_index(
         payload.pop("signature")
         digests[record_id] = _jcs_sha256(payload)
     return records, digests
+
+
+def _introduced_identity(record: dict[str, Any]) -> tuple[str, str, int, str] | None:
+    kind = record["kind"]
+    value = record["value"]
+    if kind in {"trust_anchor", "recovery_anchor"}:
+        return (
+            value["issuer_id"],
+            value["lineage_id"],
+            value["epoch"],
+            value["key_id"],
+        )
+    if kind == "delegation":
+        return (
+            value["subject_issuer_id"],
+            value["subject_lineage_id"],
+            value["subject_epoch"],
+            value["subject_key_id"],
+        )
+    if kind == "rotation":
+        return (
+            value["successor_issuer_id"],
+            value["lineage_id"],
+            value["successor_epoch"],
+            value["successor_key_id"],
+        )
+    if kind == "recovery":
+        return (
+            value["replacement_issuer_id"],
+            value["replacement_lineage_id"],
+            value["replacement_epoch"],
+            value["replacement_key_id"],
+        )
+    return None
+
+
+def _signer_identity(record: dict[str, Any]) -> tuple[str, str, int, str] | None:
+    if record["kind"] in {"trust_anchor", "recovery_anchor"}:
+        return None
+    value = record["value"]
+    return (
+        value["issuer_id"],
+        value["lineage_id"],
+        value["issuer_epoch"],
+        value["issuer_key_id"],
+    )
+
+
+def _canonical_authorization_path(
+    target_id: str,
+    records: dict[str, dict[str, Any]],
+    decisive_ids: set[str],
+    case_id: str,
+) -> list[str]:
+    """Derive one exact signer-introduction path to a decisive dependency."""
+
+    memo: dict[str, tuple[str, ...]] = {}
+
+    def derive(record_id: str, active: frozenset[str]) -> tuple[str, ...] | None:
+        if record_id in memo:
+            return memo[record_id]
+        if record_id in active or record_id not in decisive_ids:
+            return None
+        record = records.get(record_id)
+        if record is None:
+            return None
+        if record["kind"] in {"trust_anchor", "recovery_anchor"}:
+            result = (record_id,)
+            memo[record_id] = result
+            return result
+        signer = _signer_identity(record)
+        candidates: list[tuple[str, ...]] = []
+        for parent_id, parent in records.items():
+            if (
+                parent_id == record_id
+                or parent_id not in decisive_ids
+                or _introduced_identity(parent) != signer
+            ):
+                continue
+            if record["kind"] == "recovery":
+                if parent["kind"] != "recovery_anchor":
+                    continue
+            elif parent["kind"] == "recovery_anchor":
+                continue
+            if (
+                record["kind"] == "rotation"
+                and record["value"]["predecessor_entry_id"] != parent_id
+            ):
+                continue
+            parent_path = derive(parent_id, active | {record_id})
+            if parent_path is not None:
+                candidates.append((*parent_path, record_id))
+        result = min(candidates) if candidates else None
+        if result is not None:
+            memo[record_id] = result
+        return result
+
+    path = derive(target_id, frozenset())
+    if path is None:
+        raise StructuralValidationError(
+            f"{case_id}: no decisive signer-introduction path resolves {target_id}"
+        )
+    return list(path)
 
 
 def _validate_case_provenance(
@@ -1018,7 +1121,6 @@ def _validate_case_provenance(
     decisive_ids = {
         item["record_id"] for item in evaluation_records if item["decisive"]
     }
-    claim_ids = {item["claim_entry_id"] for item in provenance["authority_chains"]}
     for chain in provenance["authority_chains"]:
         chain_ids = [item["record_id"] for item in chain["records"]]
         _require_unique(chain_ids, f"{case['case_id']} chain record_id")
@@ -1027,7 +1129,7 @@ def _validate_case_provenance(
                 f"{case['case_id']}: claim chain must end at claim_entry_id"
             )
         first_chain_record = records.get(chain_ids[0])
-        if first_chain_record is None or first_chain_record["kind"] != "anchor":
+        if first_chain_record is None or first_chain_record["kind"] != "trust_anchor":
             raise StructuralValidationError(
                 f"{case['case_id']}: claim chain must begin at an external anchor"
             )
@@ -1037,7 +1139,8 @@ def _validate_case_provenance(
                 f"{case['case_id']}: claim_entry_id must resolve to a claim"
             )
         current_id = chain_ids[0]
-        current_issuer = first_chain_record["value"]["issuer_id"]
+        current_identity = _introduced_identity(first_chain_record)
+        assert current_identity is not None
         for introduction_id in chain_ids[1:-1]:
             introduction = records.get(introduction_id)
             if introduction is None or introduction["kind"] not in {
@@ -1051,33 +1154,35 @@ def _validate_case_provenance(
                 )
             item = introduction["value"]
             if introduction["kind"] == "delegation":
-                if item["issuer_id"] != current_issuer:
+                if _signer_identity(introduction) != current_identity:
                     raise StructuralValidationError(
                         f"{case['case_id']}: disconnected delegation in claim chain"
                     )
-                current_issuer = item["subject_issuer_id"]
             elif introduction["kind"] == "rotation":
                 if (
-                    item["issuer_id"] != current_issuer
+                    _signer_identity(introduction) != current_identity
                     or item["predecessor_entry_id"] != current_id
                 ):
                     raise StructuralValidationError(
                         f"{case['case_id']}: disconnected rotation in claim chain"
                     )
-                current_issuer = item["successor_issuer_id"]
             else:
                 if (
-                    item["compromised_issuer_id"] != current_issuer
+                    item["compromised_issuer_id"] != current_identity[0]
+                    or item["compromised_lineage_id"] != current_identity[1]
                     or item["predecessor_entry_id"] != current_id
+                    or item["replacement_epoch"] != current_identity[2] + 1
                 ):
                     raise StructuralValidationError(
                         f"{case['case_id']}: disconnected recovery in claim chain"
                     )
-                current_issuer = item["replacement_issuer_id"]
+            introduced_identity = _introduced_identity(introduction)
+            assert introduced_identity is not None
+            current_identity = introduced_identity
             current_id = introduction_id
         if (
-            claim_record["value"]["issuer_id"] != current_issuer
-            or chain["issuer_id"] != current_issuer
+            _signer_identity(claim_record) != current_identity
+            or chain["issuer_id"] != current_identity[0]
         ):
             raise StructuralValidationError(
                 f"{case['case_id']}: authority chain issuer_id mismatch"
@@ -1100,10 +1205,33 @@ def _validate_case_provenance(
                     f"{case['case_id']}: authority chain contains a nondecisive record"
                 )
 
+    required_dependencies: set[tuple[str, str]] = set()
+    for record_id in decisive_ids:
+        kind = records[record_id]["kind"]
+        if kind in {
+            "trust_anchor",
+            "recovery_anchor",
+            "delegation",
+            "rotation",
+            "recovery",
+        }:
+            required_dependencies.add(("identity_introduction", record_id))
+        if kind in {"precedence", "recovery", "revocation"}:
+            required_dependencies.add((kind, record_id))
+    decisive_head_ids = {
+        head["entry_id"]
+        for head in authority_bundle["lineage_heads"]
+        if head["entry_id"] in decisive_ids
+    }
+    required_dependencies.update(
+        ("lineage_head", record_id) for record_id in decisive_head_ids
+    )
+
     dependency_pairs: set[tuple[str, str]] = set()
     for dependency in provenance["authority_dependencies"]:
         record_id = dependency["record_id"]
-        pair = (dependency["dependency_type"], record_id)
+        dependency_type = dependency["dependency_type"]
+        pair = (dependency_type, record_id)
         if pair in dependency_pairs:
             raise StructuralValidationError(
                 f"{case['case_id']}: duplicate authority dependency {pair}"
@@ -1112,25 +1240,45 @@ def _validate_case_provenance(
         if (
             record_id not in digests
             or dependency["payload_sha256"] != digests[record_id]
+            or record_id not in decisive_ids
         ):
             raise StructuralValidationError(
                 f"{case['case_id']}: authority dependency record mismatch: {record_id}"
             )
+        target_kind = records[record_id]["kind"]
+        if dependency_type == "identity_introduction":
+            target_matches_type = target_kind in {
+                "trust_anchor",
+                "recovery_anchor",
+                "delegation",
+                "rotation",
+                "recovery",
+            }
+        elif dependency_type == "lineage_head":
+            target_matches_type = record_id in decisive_head_ids
+        else:
+            target_matches_type = target_kind == dependency_type
+        if not target_matches_type:
+            raise StructuralValidationError(
+                f"{case['case_id']}: dependency type does not match target: {pair}"
+            )
         authorization_ids = [
             item["record_id"] for item in dependency["authorization_records"]
         ]
-        if authorization_ids[-1] != record_id:
+        _require_unique(
+            authorization_ids,
+            f"{case['case_id']} dependency authorization record_id",
+        )
+        expected_authorization_ids = _canonical_authorization_path(
+            record_id,
+            records,
+            decisive_ids,
+            case["case_id"],
+        )
+        if authorization_ids != expected_authorization_ids:
             raise StructuralValidationError(
-                f"{case['case_id']}: dependency authorization path must end "
-                "at dependency"
-            )
-        first_authorization_record = records.get(authorization_ids[0])
-        if (
-            first_authorization_record is None
-            or first_authorization_record["kind"] != "anchor"
-        ):
-            raise StructuralValidationError(
-                f"{case['case_id']}: dependency path must begin at an anchor"
+                f"{case['case_id']}: dependency authorization path is not the "
+                f"canonical signer-introduction path for {record_id}"
             )
         for authority_record in dependency["authorization_records"]:
             authorization_id = authority_record["record_id"]
@@ -1141,24 +1289,11 @@ def _validate_case_provenance(
                 raise StructuralValidationError(
                     f"{case['case_id']}: dependency authorization record mismatch"
                 )
-        if not set(dependency["decisive_for"]) <= claim_ids:
-            raise StructuralValidationError(
-                f"{case['case_id']}: decisive_for must name a reported claim endpoint"
-            )
-
-    required_dependencies: set[tuple[str, str]] = set()
-    for record_id in decisive_ids:
-        kind = records[record_id]["kind"]
-        if kind in {"anchor", "delegation", "rotation", "recovery"}:
-            required_dependencies.add(("identity_introduction", record_id))
-        if kind in {"precedence", "recovery", "revocation"}:
-            required_dependencies.add((kind, record_id))
-    for head in authority_bundle["lineage_heads"]:
-        required_dependencies.add(("lineage_head", head["entry_id"]))
-    if not required_dependencies <= dependency_pairs:
-        missing = sorted(required_dependencies - dependency_pairs)
+    if dependency_pairs != required_dependencies:
+        difference = sorted(dependency_pairs ^ required_dependencies)
         raise StructuralValidationError(
-            f"{case['case_id']}: missing decisive authority dependencies: {missing}"
+            f"{case['case_id']}: authority dependencies are not the exact decisive "
+            f"set: {difference}"
         )
 
     for field in ("contract_records", "evidence_records"):
@@ -2011,7 +2146,7 @@ def _assignment(value: str) -> tuple[str, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate v0.3.8 record shapes or one complete sealed workflow."
+        description="Validate v0.3.9 record shapes or one complete sealed workflow."
     )
     subparsers = parser.add_subparsers(dest="mode", required=True)
     record_parser = subparsers.add_parser(
