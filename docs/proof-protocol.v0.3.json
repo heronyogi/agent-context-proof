@@ -343,8 +343,45 @@
     "artifact_schema_contract": {
       "closed_validation_algorithm": "scripts/validate_v03_artifact.py",
       "closed_validation_mode": "complete-pack",
+      "closed_validation_trusted_input": {
+        "field": "expected_approved_protocol_commit",
+        "format": "40_lowercase_hex_git_commit",
+        "approved_protocol_manifest": "external_closed_manifest_of_every_governing_protocol_schema_review_guide_and_validator_file",
+        "approved_protocol_manifest_digest_field": "expected_approved_protocol_manifest_sha256",
+        "approved_protocol_manifest_digest_source": "external_object_bound_owner_review_decision",
+        "governed_file_set": [
+          "docs/approved-protocol-manifest.v0.3.schema.json",
+          "docs/authority-ledger-bundle.v0.3.schema.json",
+          "docs/authority-ledger-entry.v0.3.schema.json",
+          "docs/authorship-attestation.v0.3.schema.json",
+          "docs/authorship-collection.v0.3.schema.json",
+          "docs/case-authoring.v0.3.md",
+          "docs/case-record.v0.3.schema.json",
+          "docs/freeze-reveal-record.v0.3.schema.json",
+          "docs/leakage-review-attestation.v0.3.schema.json",
+          "docs/oracle-record.v0.3.schema.json",
+          "docs/oracle-reveal-record.v0.3.schema.json",
+          "docs/path-artifact-manifest.v0.3.schema.json",
+          "docs/path-output-commitment.v0.3.schema.json",
+          "docs/path-run-record.v0.3.schema.json",
+          "docs/population-freeze-record.v0.3.schema.json",
+          "docs/proof-protocol.v0.3.json",
+          "docs/proof-protocol.v0.3.md",
+          "docs/protocol-artifact-defs.v0.3.schema.json",
+          "docs/public-commitment.v0.3.schema.json",
+          "docs/relatedness-graph.v0.3.schema.json",
+          "docs/result-record.v0.3.schema.json",
+          "docs/sealed-pack-manifest.v0.3.schema.json",
+          "docs/trace-record.v0.3.schema.json",
+          "docs/v0.3-review-guide.md",
+          "scripts/validate_v03_artifact.py"
+        ],
+        "source": "external_object_bound_owner_review_decision",
+        "self_asserted_pack_value_is_trusted": false
+      },
       "duplicate_json_members": "REJECT",
       "schema_files": {
+        "approved_protocol_manifest": "docs/approved-protocol-manifest.v0.3.schema.json",
         "authorship_attestation": "docs/authorship-attestation.v0.3.schema.json",
         "authorship_collection": "docs/authorship-collection.v0.3.schema.json",
         "case_record": "docs/case-record.v0.3.schema.json",
@@ -382,6 +419,9 @@
         "oracle_rule_ids_and_reason_codes_are_unicode_code_point_sorted",
         "authority_dependencies_equal_the_exact_decisive_set_with_type_matched_targets",
         "dependency_authorization_records_equal_the_canonical_full_identity_tuple_signer_path",
+        "classification_decisiveness_provenance_roles_and_authority_status_form_one_closed_relation",
+        "pack_protocol_commit_equals_the_trusted_external_approved_protocol_commit_input",
+        "approved_protocol_manifest_digest_file_set_and_governed_bytes_equal_the_trusted_external_decision",
         "aggregate_counts_equal_validated_pack_contents",
         "committed_pack_case_exclusions_are_empty_and_any_committed_case_defect_invalidates_the_experiment",
         "one_frozen_repeat_count_applies_to_every_declared_path",
@@ -457,7 +497,7 @@
         "reveal_after": "all_path_outputs_digest_committed"
       },
       "archive_profile": {
-        "format": "USTAR_CANONICAL_V0.3.9",
+        "format": "USTAR_CANONICAL_V0.3.10",
         "members": "regular_files_only",
         "member_order": "ascending_unicode_code_point_path",
         "metadata": "uid_0_gid_0_empty_names_mtime_0_mode_0644_no_pax",
@@ -879,6 +919,14 @@
       "decisive"
     ],
     "authority_evaluation_record_coverage": "exactly_every_anchor_recovery_anchor_and_signed_entry_in_the_case_authority_bundle",
+    "classification_role_contract": {
+      "NONMATCHING": "never_decisive",
+      "authority_chain_records": "VALID",
+      "dependency_authorization_prefix_records": "VALID",
+      "dependency_target_records": "VALID_or_INVALID_or_UNRESOLVED_but_never_NONMATCHING",
+      "conformant_decisive_UNRESOLVED": "if_and_only_if_authority_status_INDETERMINATE",
+      "conformant_authority_status_INVALID": "requires_at_least_one_decisive_INVALID_record"
+    },
     "conflict_minimum_authority_chains": 2,
     "exact_match": "ordered_paths_record_ids_and_sha256_digests",
     "file_record_required_fields": [
@@ -909,6 +957,10 @@
       {
         "id": "PV6_BUNDLE_COVERAGE",
         "rule": "authority_evaluation_records contains every trust anchor, recovery anchor, and signed entry in the exact authority bundle once, with its recomputed payload digest, classification, and decisive flag; every reported chain or dependency resolves to that closed index, every claim endpoint is decisive, and required dependency types are present."
+      },
+      {
+        "id": "PV7_CLASSIFICATION_COHERENCE",
+        "rule": "`NONMATCHING` records are never decisive. Every record on an `authority_chain` and every non-target signer-introduction record in a dependency authorization path is classified `VALID`. For a `CONFORMANT` mechanism, decisive `UNRESOLVED` records occur if and only if authority is `INDETERMINATE`, and `INVALID` authority requires at least one decisive `INVALID` record."
       }
     ],
     "path_format": "relative_posix_without_dot_segments_and_present_in_permitted_inputs_manifest",
@@ -953,7 +1005,7 @@
     "TRUST_OR_TIME_UNSATISFIED",
     "VALID_ISSUER_CONFLICT"
   ],
-  "schema_version": "agent-context-proof-protocol-v0.3.9",
+  "schema_version": "agent-context-proof-protocol-v0.3.10",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",

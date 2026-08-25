@@ -92,6 +92,19 @@ The public commitment must not expose case or family identifiers, questions,
 filenames, path or record ordering, fixture bytes, mutation descriptions, oracle
 fields, reason codes, or author notes.
 
+The `approved_protocol_commit` is not trusted merely because both the public
+commitment and population freeze repeat it. Before validation, the coordinator
+obtains the exact approved commit from the external object-bound owner/review
+decision and supplies it separately as
+`expected_approved_protocol_commit`. The complete-pack validator requires all
+three values to match. The same decision supplies a trusted SHA-256 digest for
+an external approved-protocol manifest. That manifest covers the exact closed
+set of governing protocol, schema, review-guide, and validator files; every
+listed digest is recomputed against the running checkout. Validation fails
+closed when the trusted commit, manifest digest, manifest file set, or governed
+bytes differ. The validator binds the supplied decision; it does not
+authenticate who made that decision.
+
 ### Sealed input pack
 
 The input pack contains the exact questions, validation times, ledger and
@@ -127,6 +140,7 @@ is released only for scoring the already committed outputs.
 The following strict Draft 2020-12 schemas govern every record needed to seal,
 freeze, reveal, and score a v0.3 experiment:
 
+- [`approved-protocol-manifest.v0.3.schema.json`](approved-protocol-manifest.v0.3.schema.json)
 - [`case-record.v0.3.schema.json`](case-record.v0.3.schema.json)
 - [`oracle-record.v0.3.schema.json`](oracle-record.v0.3.schema.json)
 - [`result-record.v0.3.schema.json`](result-record.v0.3.schema.json)
@@ -175,6 +189,9 @@ The two modes are explicit:
 ```bash
 python scripts/validate_v03_artifact.py record oracle_record=oracle.json
 python scripts/validate_v03_artifact.py complete-pack \
+  --expected-approved-protocol-commit <40-lowercase-hex-commit> \
+  --approved-protocol-manifest approved-protocol.json \
+  --expected-approved-protocol-manifest-sha256 <sha256:64-lowercase-hex> \
   --public-commitment public.json \
   --input-archive sealed-input.tar \
   --input-manifest sealed-input.manifest.json \
@@ -196,7 +213,7 @@ python scripts/validate_v03_artifact.py complete-pack \
 ```
 
 The sealed packs and every per-path result and trace collection are uncompressed
-`USTAR_CANONICAL_V0.3.9` archives. Members are Unicode-code-point sorted regular
+`USTAR_CANONICAL_V0.3.10` archives. Members are Unicode-code-point sorted regular
 files only, with uid/gid 0, empty owner names, mtime 0, mode 0644, no PAX fields,
 safe relative POSIX paths, and exact external manifest coverage. Result members
 use `results/<path_id>/<case_id>/<repeat_index>.json`; trace members use
@@ -215,7 +232,7 @@ Each record in the sealed input pack contains:
 
 ```json
 {
-  "schema_version": "agent-context-proof-case-v0.3.9",
+  "schema_version": "agent-context-proof-case-v0.3.10",
   "case_id": "blind_example_001",
   "family_id": "authority_rotation",
   "split": "blind_validation",
@@ -236,7 +253,7 @@ The matching sealed record contains an oracle payload of this shape:
 
 ```json
 {
-  "schema_version": "agent-context-proof-oracle-v0.3.9",
+  "schema_version": "agent-context-proof-oracle-v0.3.10",
   "case_id": "blind_example_001",
   "case_coordinate": {
     "organization": "org:orion",
@@ -373,7 +390,7 @@ At least two eligible annotators who did not implement either evaluated
 resolver independently apply the committed oracle-classification tables. Each
 annotation records the three output fields, the applicable `OA`, `OE`, and `V`
 rule IDs, the complete case coordinate, validation time, decisive provenance,
-and a deterministic rationale. The v0.3.9 record profile embeds exactly two
+and a deterministic rationale. The v0.3.10 record profile embeds exactly two
 full annotations in the sealed
 oracle record with a non-cryptographic declaration. An `OE` rule is required
 only after `OA1_VALID`; mechanism failure instead records only `V7` or `V8`.
@@ -487,6 +504,17 @@ Together those records must name or bind:
   case × path × repeat matrices, and commitment timestamps;
 - oracle reveal timestamp; and
 - the empty committed-pack exclusion list and exact all-candidate included set.
+
+Closed validation additionally receives the approved protocol commit as a
+trusted external argument and a content-addressed approved-protocol manifest
+derived from the object-bound decision. Agreement between two pack records is
+necessary but insufficient; neither record may select its own approval object
+or substitute different governing bytes.
+
+Closed validation additionally receives the approved protocol commit as a
+trusted external argument derived from the object-bound decision. Agreement
+between two pack records is necessary but insufficient; neither record may
+select its own approval object.
 
 After reveal, changes to evaluated code, prompts, rules, cases, or labels create
 a new experiment version. They cannot be folded into the original v0.3 result.
