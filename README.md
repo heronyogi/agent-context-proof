@@ -6,9 +6,15 @@ through governed context rather than treating retrieved prose as authority.
 The repository uses a wholly synthetic release, **Orion 1.0.0**. No proprietary
 source, production data, or internal names are included.
 
-> **Repository state:** v0.3 is a protocol draft under independent review. It
-> has no evaluator implementation, sealed cases, or experimental result. The
-> approved v0.2.2 implementation and results remain separate historical work.
+> **Repository state:** exact v0.3.11 protocol commit
+> [`daa8a57`](https://github.com/heronyogi/agent-context-proof/commit/daa8a579bf9bc58fd7c4c24df1eb197a4b387311)
+> received an independent `APPROVE_FOR_CASE_SEALING` recommendation and was
+> merged through [PR #11](https://github.com/heronyogi/agent-context-proof/pull/11)
+> as [`902ef77`](https://github.com/heronyogi/agent-context-proof/commit/902ef77383cc3bba33efceb8dceff8117c5d5e60).
+> That recommendation is limited to case-sealing readiness; it does not itself
+> authorize case sealing or approve a v0.3 evaluator, implementation,
+> experiment, production use, real-world authority claim, canon, or Seal. None
+> of those v0.3 artifacts or results is claimed.
 
 ## Start here
 
@@ -27,7 +33,7 @@ artifacts, review boundary, workflow triggers, and validation commands.
 
 ![Governed context architecture](docs/agent-interactions.png)
 
-## v0.3 protocol draft
+## v0.3.11 protocol status
 
 The approved v0.2.2 proof is frozen at merge commit `3741aae`. The next
 experiment is deliberately protocol-first: it separates mechanism conformance
@@ -36,8 +42,9 @@ disposition, requires independently authored blind case families, and specifies
 a genuinely independent retrieval-plus-rules comparator with equivalent input
 access.
 
-No v0.3 implementation or result is claimed. Implementation remains gated on
-independent review of:
+No v0.3 implementation or result is claimed. Independent review of the exact
+v0.3.11 protocol is complete for the case-sealing stage only. Implementation
+remains gated on a separate decision. The reviewed protocol surfaces are:
 
 - [`docs/proof-protocol.v0.3.md`](docs/proof-protocol.v0.3.md);
 - [`docs/proof-protocol.v0.3.json`](docs/proof-protocol.v0.3.json); and
@@ -63,9 +70,11 @@ experiment-artifact schemas and
 [`scripts/validate_v03_artifact.py`](scripts/validate_v03_artifact.py) provide
 separate record-shape and closed complete-pack validation. The complete mode
 recomputes the exact input, oracle, result, and trace archive commitments and
-requires every frozen case × path × repeat coordinate. These changes remain a
-protocol candidate until separately reviewed; they do not open implementation
-or case-sealing authority by themselves.
+requires every frozen case × path × repeat coordinate. The exact-object review
+recorded zero findings after 188 repository tests, 142 core protocol replays,
+30 independently rebound annotation attacks, and two coherent disagreement
+controls. The public recommendation and its limits are recorded in the
+[PR #11 review comment](https://github.com/heronyogi/agent-context-proof/pull/11#issuecomment-5404431511).
 
 ## What v0.2 tests
 

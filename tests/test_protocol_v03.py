@@ -719,11 +719,15 @@ def test_v03_retains_zero_unsafe_promotions_and_clustered_repeats() -> None:
     )
 
 
-def test_readme_exposes_protocol_draft_without_claiming_a_result() -> None:
+def test_readme_exposes_case_sealing_scope_without_claiming_a_result() -> None:
     readme = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
     assert "docs/proof-protocol.v0.3.md" in readme
     assert "No v0.3 implementation or result is claimed" in readme
-    assert "v0.3 is a protocol draft under independent review" in readme
+    assert "APPROVE_FOR_CASE_SEALING" in readme
+    assert "daa8a579bf9bc58fd7c4c24df1eb197a4b387311" in readme
+    assert "case-sealing stage only" in readme
+    assert "does not itself\n> authorize case sealing" in readme
+    assert "approve a v0.3 evaluator" in readme
     assert "tests/fixtures/authority-ledger.v0.3.vectors.json" in readme
     assert "docs/authority-ledger.v0.3.vectors.json" not in readme
 
