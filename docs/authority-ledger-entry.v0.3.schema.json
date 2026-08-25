@@ -39,7 +39,7 @@
           "$ref": "#/$defs/timestamp"
         },
         "schema_version": {
-          "const": "agent-context-proof-authority-entry-v0.3.1"
+          "const": "agent-context-proof-authority-entry-v0.3.2"
         },
         "scope": {
           "$ref": "#/$defs/scope"
@@ -59,6 +59,7 @@
         "scope",
         "issued_at",
         "not_before",
+        "not_after",
         "signature"
       ],
       "type": "object"

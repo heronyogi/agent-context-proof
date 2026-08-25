@@ -10,6 +10,12 @@ PROTOCOL_JSON = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.json"
 PROTOCOL_MD = PROJECT_ROOT / "docs" / "proof-protocol.v0.3.md"
 AUTHORING_MD = PROJECT_ROOT / "docs" / "case-authoring.v0.3.md"
 REVIEW_GUIDE = PROJECT_ROOT / "docs" / "v0.3-review-guide.md"
+RECONCILIATION = (
+    PROJECT_ROOT / "docs" / "reviews" / "v0.3.5-reconciliation-2026-08-24.json"
+)
+V036_DISPOSITION = (
+    PROJECT_ROOT / "docs" / "reviews" / "v0.3.6-review-disposition-2026-08-24.json"
+)
 CI_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
 LIVE_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "live-eval.yml"
 
@@ -48,9 +54,7 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
         values = [value.strip() for value in line.strip("|").split("|")]
         return [
             value[1:-1]
-            if value.startswith("`")
-            and value.endswith("`")
-            and value.count("`") == 2
+            if value.startswith("`") and value.endswith("`") and value.count("`") == 2
             else value
             for value in values
         ]
@@ -61,10 +65,53 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.5"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.7"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"
+
+
+def test_v035_conflicting_review_records_are_preserved_and_reconciled() -> None:
+    record = json.loads(RECONCILIATION.read_text(encoding="utf-8"))
+    assert record["subject"]["commit"] == ("f29adba84d5711eecbd6be3f9871cbc8c08127d3")
+    assert record["prior_public_decision"] == {
+        "outcome": "APPROVE_FOR_CASE_SEALING",
+        "comment_url": (
+            "https://github.com/heronyogi/agent-context-proof/pull/2"
+            "#issuecomment-5181725385"
+        ),
+        "annotated_tag": "v0.3.5-protocol-approved-for-case-sealing",
+        "preserved_as_historical_exact_subject_record": True,
+        "revoked_by_this_record": False,
+    }
+    later = record["later_independent_review"]
+    assert later["outcome"] == "REQUEST_CHANGES"
+    assert later["blocking_finding_ids"] == [
+        f"ACP-V03-00{index}" for index in range(1, 7)
+    ]
+    reconciliation = record["owner_reconciliation"]
+    assert reconciliation["disposition"] == "ACCEPT_FINDINGS_AND_PREPARE_SUCCESSOR"
+    assert reconciliation["case_sealing_state"] == "HELD_PENDING_SUCCESSOR_REVIEW"
+    assert reconciliation["implementation_state"] == "CLOSED"
+    assert reconciliation["blind_case_exposure_state"] == "PROHIBITED"
+
+
+def test_v036_request_changes_is_preserved_for_its_exact_object() -> None:
+    disposition = json.loads(V036_DISPOSITION.read_text(encoding="utf-8"))
+    assert disposition["subject"] == {
+        "repository": "https://github.com/heronyogi/agent-context-proof",
+        "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/5",
+        "commit": "903fef2ddd57af7e15f3c972d45b7db2a07b515e",
+        "tree": "4ab2373b26d454085fbb372e54dbf37462a4fcf1",
+        "git_archive_tar_sha256": (
+            "856458a3fedeae8e1106e0cb6e29f5b735b015f2168994fd09065d241f875acd"
+        ),
+    }
+    assert disposition["independent_review"]["outcome"] == "REQUEST_CHANGES"
+    assert disposition["owner_disposition"]["case_sealing"] == (
+        "HELD_PENDING_SUCCESSOR_REVIEW"
+    )
+    assert disposition["owner_disposition"]["successor_requires_new_exact_sha_review"]
 
 
 def test_valid_output_table_exactly_mirrors_the_machine_contract() -> None:
@@ -158,9 +205,7 @@ def test_conflict_and_ledger_rules_have_consistent_boundaries() -> None:
     assert ledger["precedence_profile"]["active_cycle"] == "INDETERMINATE"
     assert conflict["precedence_cycle_result"] == "INDETERMINATE"
     assert conflict["scope_or_time_disjoint_result"] == "not_a_conflict"
-    assert conflict["deduplication_timing"] == (
-        "after_lineage_precedence_and_maxima"
-    )
+    assert conflict["deduplication_timing"] == ("after_lineage_precedence_and_maxima")
     assert conflict["deduplicated_group_retains"] == [
         "issuer_id",
         "lineage_id",
@@ -227,8 +272,7 @@ def test_signature_epoch_revocation_and_precedence_are_fully_pinned() -> None:
     assert epoch == {
         "comparison_domain": "same_lineage_only",
         "effective_epoch": (
-            "highest_validated_successor_whose_boundary_is_at_or_before_"
-            "validation_time"
+            "highest_validated_successor_whose_boundary_is_at_or_before_validation_time"
         ),
         "minimum": 0,
         "parallel_different_successors": "INDETERMINATE",
@@ -300,8 +344,7 @@ def test_oracle_tables_mirror_machine_contract_and_valid_outputs() -> None:
 
     valid = {item["id"]: item for item in protocol["valid_output_combinations"]}
     authority_routes = {
-        item["id"]: item["disposition_route"]
-        for item in oracle["authority_rules"]
+        item["id"]: item["disposition_route"] for item in oracle["authority_rules"]
     }
     assert authority_routes == {
         "OA1_VALID": "EVIDENCE_CLASSIFICATION",
@@ -315,8 +358,7 @@ def test_oracle_tables_mirror_machine_contract_and_valid_outputs() -> None:
         "SATISFIED",
     ]
     assert {
-        item["evidence_state"]: item["disposition"]
-        for item in oracle["evidence_rules"]
+        item["evidence_state"]: item["disposition"] for item in oracle["evidence_rules"]
     } == {
         "UNKNOWN": valid["V3_EVIDENCE_UNKNOWN"]["disposition"],
         "UNSATISFIED": valid["V2_HOLD"]["disposition"],
@@ -324,8 +366,7 @@ def test_oracle_tables_mirror_machine_contract_and_valid_outputs() -> None:
     }
 
 
-def test_conflict_example_has_exact_provenance_for_every_competing_chain(
-) -> None:
+def test_conflict_example_has_exact_provenance_for_every_competing_chain() -> None:
     protocol = _protocol()
     provenance_contract = protocol["provenance_contract"]
     rows = _markdown_table(PROTOCOL_MD, "### Provenance requirements")
@@ -345,13 +386,22 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain(
     )
     assert provenance_contract["array_ordering"] == {
         "authority_chains": (
-            "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id)"
+            "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id,chain_sha256)"
+        ),
+        "authority_evaluation_records": (
+            "ascending_unicode_code_point_tuple(record_id,payload_sha256)"
+        ),
+        "authority_dependencies": (
+            "ascending_unicode_code_point_tuple(dependency_type,record_id,"
+            "payload_sha256)"
+        ),
+        "authorization_records_within_dependency": (
+            "semantic_chain_order_from_authorizing_anchor_to_dependency_record"
         ),
         "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
+        "decisive_for_within_dependency": "ascending_unicode_code_point",
         "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
-        "records_within_authority_chain": (
-            "semantic_chain_order_from_anchor_or_delegation_to_claim"
-        ),
+        "records_within_authority_chain": ("semantic_chain_order_from_anchor_to_claim"),
         "unevaluated_stages": "stage_order_suffix",
     }
 
@@ -363,9 +413,7 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain(
     provenance = oracle["provenance"]
     assert set(provenance) == set(provenance_contract["provenance_required_fields"])
     chains = provenance["authority_chains"]
-    assert len(chains) >= provenance_contract[
-        "conflict_minimum_authority_chains"
-    ]
+    assert len(chains) >= provenance_contract["conflict_minimum_authority_chains"]
     assert provenance["contract_records"] == []
     assert provenance["evidence_records"] == []
     assert provenance["unevaluated_stages"] == ["contract", "evidence"]
@@ -384,9 +432,7 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain(
     assert not {".", ".."} & set(bundle_path.parts)
     claim_ids = set()
     for chain in chains:
-        assert set(chain) == set(
-            provenance_contract["authority_chain_required_fields"]
-        )
+        assert set(chain) == set(provenance_contract["authority_chain_required_fields"])
         records = chain["records"]
         assert records
         assert records[-1]["record_id"] == chain["claim_entry_id"]
@@ -397,6 +443,26 @@ def test_conflict_example_has_exact_provenance_for_every_competing_chain(
                 provenance_contract["authority_record_required_fields"]
             )
             assert digest_pattern.fullmatch(record["payload_sha256"])
+
+    dependencies = provenance["authority_dependencies"]
+    assert dependencies == sorted(
+        dependencies,
+        key=lambda item: (
+            item["dependency_type"],
+            item["record_id"],
+            item["payload_sha256"],
+        ),
+    )
+    for dependency in dependencies:
+        assert set(dependency) == set(
+            provenance_contract["authority_dependency_required_fields"]
+        )
+        assert (
+            dependency["dependency_type"]
+            in provenance_contract["authority_dependency_types"]
+        )
+        assert dependency["decisive_for"] == sorted(dependency["decisive_for"])
+        assert dependency["authorization_records"]
 
 
 def test_scoring_population_exactly_mirrors_and_constrains_pass_rules() -> None:
@@ -480,9 +546,7 @@ def test_leakage_review_can_only_pass_revise_or_reject_before_commitment() -> No
     assert leakage["allowed_dispositions"] == ["PASS", "REVISE", "REJECT"]
     assert leakage["case_acceptance"] == "PASS_before_pack_commitment"
     assert leakage["unremovable_leak"] == "REJECT"
-    assert leakage["revision_requires"] == (
-        "new_pack_digest_and_new_blinded_reviewer"
-    )
+    assert leakage["revision_requires"] == ("new_pack_digest_and_new_blinded_reviewer")
     assert {
         "oracle_labels",
         "reason_codes",
@@ -496,8 +560,7 @@ def test_leakage_review_can_only_pass_revise_or_reject_before_commitment() -> No
     assert "new blinded reviewer" in authoring_text
 
 
-def test_oracle_labeling_requires_independent_rules_and_disagreement(
-) -> None:
+def test_oracle_labeling_requires_independent_rules_and_disagreement() -> None:
     labeling = _protocol()["blind_evaluation"]["oracle_labeling"]
     assert labeling == {
         "disagreement_if_unresolved": "REJECT_BEFORE_PACK_COMMITMENT",
@@ -582,13 +645,9 @@ def test_reviewer_guide_maps_the_frozen_boundary_and_artifacts() -> None:
 
 def test_vectors_are_isolated_and_prominently_marked_test_only() -> None:
     protocol = _protocol()
-    fixture_path = PROJECT_ROOT / protocol["authority_ledger"][
-        "reference_vectors"
-    ]
+    fixture_path = PROJECT_ROOT / protocol["authority_ledger"]["reference_vectors"]
     fixture_text = fixture_path.read_text(encoding="utf-8")
-    fixture_readme = (fixture_path.parent / "README.md").read_text(
-        encoding="utf-8"
-    )
+    fixture_readme = (fixture_path.parent / "README.md").read_text(encoding="utf-8")
 
     assert fixture_path.parent == PROJECT_ROOT / "tests" / "fixtures"
     assert not (PROJECT_ROOT / "docs" / fixture_path.name).exists()

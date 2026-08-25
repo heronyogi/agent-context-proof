@@ -11,11 +11,11 @@
       },
       {
         "id": "time",
-        "requirement": "Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end; authorize each entry once at issued_at, then apply an already-authorized delayed transition at its effective boundary without reauthorizing the signer."
+        "requirement": "Use UTC RFC 3339 timestamps ending in Z and finite half-open validity intervals [not_before, not_after), with not_after required and strictly later than not_before; require issued_at == not_before for claim, delegation, and precedence entries; at each timestamp activate external anchors and apply earlier-issued transition effects before authorizing one same-timestamp entry batch, then apply that batch's immediate effects; no entry may authorize another entry issued at the same timestamp."
       },
       {
         "id": "scope",
-        "requirement": "Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; specificity never creates implicit precedence."
+        "requirement": "Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; require every signed entry scope to be component-wise contained by each grant that authorizes it, so an exact field can never expand to *; specificity never creates implicit precedence."
       },
       {
         "id": "epoch",
@@ -49,7 +49,7 @@
           "subject_epoch",
           "permissions"
         ],
-        "rule": "The signer must be current at issued_at and hold delegate permission for the matching scope; permissions are unique and Unicode-code-point sorted."
+        "rule": "The signer must be current in the issued_at batch snapshot, hold delegate permission, and have a grant scope that contains the entry scope; the entry scope becomes the subject grant scope, and permissions are unique and Unicode-code-point sorted."
       },
       {
         "entry_type": "rotation",
@@ -61,7 +61,7 @@
           "successor_permissions",
           "successor_epoch"
         ],
-        "rule": "The current predecessor signs one successor in the same lineage at issuer_epoch plus one; it becomes effective at not_before."
+        "rule": "The current predecessor signs one successor in the same lineage at issuer_epoch plus one; the predecessor's rotate grant scope must contain the entry scope, which becomes the successor grant scope, and the rotation becomes effective at not_before."
       },
       {
         "entry_type": "revocation",
@@ -70,7 +70,7 @@
           "target_issuer_id",
           "effective_at"
         ],
-        "rule": "A signer valid immediately before issued_at must hold revoke permission; target_entry_id must uniquely resolve to an authority-introduction record whose introduced issuer is target_issuer_id, and the grant is durably revoked when validation_time is at or after effective_at."
+        "rule": "The signer must be current in the issued_at batch snapshot and hold a revoke grant containing the complete target grant scope; entry scope must equal that target scope, target_entry_id must uniquely resolve to an authority-introduction record whose introduced issuer is target_issuer_id, and the grant is durably revoked when validation_time is at or after effective_at."
       },
       {
         "entry_type": "precedence",
@@ -78,7 +78,7 @@
           "higher_issuer_id",
           "lower_issuer_id"
         ],
-        "rule": "A current signer with set_precedence permission creates one directed edge only for matching scope and the entry validity interval."
+        "rule": "A signer current in the issued_at batch snapshot with set_precedence permission creates one directed edge for the entry validity interval only when the signer grant and both endpoint authority scopes contain the edge scope."
       },
       {
         "entry_type": "recovery",
@@ -94,7 +94,7 @@
           "replacement_permissions",
           "effective_at"
         ],
-        "rule": "The signer must resolve from the separate recovery trust-anchor set with recover permission; at effective_at, predecessor_entry_id must be the current head of compromised_lineage_id for compromised_issuer_id, replacement_lineage_id must equal that lineage, and replacement_epoch must equal the predecessor epoch plus one."
+        "rule": "The signer must resolve from the separate recovery trust-anchor set with recover permission whose scope, together with the compromised predecessor scope, contains the entry scope; at effective_at, predecessor_entry_id must be the current head of compromised_lineage_id for compromised_issuer_id, replacement_lineage_id must equal that lineage, replacement_epoch must equal the predecessor epoch plus one, and entry scope becomes the replacement grant scope."
       },
       {
         "entry_type": "claim",
@@ -102,7 +102,7 @@
           "claim_name",
           "claim_value"
         ],
-        "rule": "The signer must be current at validation_time and hold claim permission for the complete case coordinate."
+        "rule": "The signer must be current at validation_time and hold a claim grant whose scope contains the entry scope; the entry scope must match the complete concrete case coordinate."
       }
     ],
     "json_profile": {
@@ -129,23 +129,82 @@
     "time_profile": {
       "boundary_must_be_within_validity_interval": true,
       "delayed_transition_application": "apply_at_effective_boundary_without_signer_reauthorization",
-      "delayed_transition_time_order": "issued_at_at_or_before_not_before_at_or_before_effective_boundary",
-      "entry_authorization_time": "state_immediately_before_issued_at",
+      "delayed_transition_time_order": "issued_at_at_or_before_not_before_at_or_before_effective_boundary_strictly_before_not_after",
+      "entry_authorization_time": "state_at_issued_at_after_external_anchor_boundaries_and_earlier_issued_transition_effects_before_same_timestamp_entry_effects",
       "format": "UTC_RFC3339_Z",
       "interval": "[not_before,not_after)",
+      "not_after": "required_finite_boundary_strictly_after_not_before_for_every_entry_and_external_anchor",
+      "non_transition_activation": "claim_delegation_and_precedence_require_issued_at_equal_to_not_before_and_take_effect_only_in_the_issued_at_step_4_batch",
       "revocation_effective_boundary": "inclusive",
+      "same_timestamp_dependency": "prohibited;entries_with_equal_issued_at_are_authorized_against_one_frozen_snapshot_and_none_can_authorize_another",
+      "timestamp_event_order": [
+        "activate_external_anchors_and_expire_intervals_at_t",
+        "apply_effects_at_t_of_transitions_with_issued_at_before_t",
+        "authorize_all_entries_with_issued_at_equal_to_t_against_one_frozen_post_transition_snapshot",
+        "apply_claim_delegation_precedence_and_same_boundary_transition_effects_at_t_as_one_batch"
+      ],
       "validation_time_source": "frozen_case_record"
     },
     "scope_profile": {
+      "authorization_scope_rule": "every_authorizing_grant_scope_contains_the_signed_entry_scope",
+      "containment": "componentwise_parent_field_is_wildcard_or_equals_child_field",
       "coordinate_fields": [
         "organization",
         "repository",
         "artifact",
         "action"
       ],
+      "entry_type_rules": {
+        "claim": "signer_claim_grant_contains_claim_scope_and_claim_scope_matches_the_concrete_case_coordinate",
+        "delegation": "signer_delegate_grant_contains_entry_scope;entry_scope_is_the_subject_grant_scope",
+        "precedence": "signer_set_precedence_grant_and_each_endpoint_authority_scope_contain_the_edge_scope",
+        "recovery": "recovery_anchor_recover_grant_and_compromised_predecessor_scope_contain_entry_scope;entry_scope_is_the_replacement_grant_scope",
+        "revocation": "signer_revoke_grant_contains_the_complete_target_grant_scope_and_entry_scope_equals_the_target_grant_scope",
+        "rotation": "predecessor_rotate_grant_contains_entry_scope;entry_scope_is_the_successor_grant_scope"
+      },
       "matching": "exact_or_entire_field_wildcard",
       "specificity_implies_precedence": false,
+      "wildcard_expansion_result": "INVALID",
       "wildcard": "*"
+    },
+    "identity_profile": {
+      "binding_fields": [
+        "issuer_id",
+        "lineage_id",
+        "issuer_epoch",
+        "issuer_key_id"
+      ],
+      "identity_collision_result": "INVALID",
+      "introduction_fields": {
+        "delegation": [
+          "subject_issuer_id",
+          "subject_lineage_id",
+          "subject_epoch",
+          "subject_key_id"
+        ],
+        "recovery": [
+          "replacement_issuer_id",
+          "replacement_lineage_id",
+          "replacement_epoch",
+          "replacement_key_id"
+        ],
+        "rotation": [
+          "successor_issuer_id",
+          "lineage_id",
+          "successor_epoch",
+          "successor_key_id"
+        ],
+        "trust_anchor": [
+          "issuer_id",
+          "lineage_id",
+          "epoch",
+          "key_id"
+        ]
+      },
+      "missing_or_unresolved_introduction_result": "INDETERMINATE",
+      "multiple_supporting_records_same_tuple": "allowed_and_all_decisive_support_is_preserved_in_provenance",
+      "resolved_tuple_mismatch_result": "INVALID",
+      "rule": "after_key_resolution_the_entry_declared_signer_tuple_must_equal_the_single_identity_tuple_introduced_for_that_key"
     },
     "epoch_profile": {
       "comparison_domain": "same_lineage_only",
@@ -158,7 +217,7 @@
       "unlinked_higher_epoch": "INVALID"
     },
     "recovery_profile": {
-      "authorization_time": "state_immediately_before_issued_at",
+      "authorization_time": "same_timestamp_frozen_authorization_snapshot",
       "boundary_precondition_failure": "INVALID_if_resolved_mismatch_else_INDETERMINATE",
       "compromised_lineage_may_self_recover": false,
       "effective_boundary": "inclusive",
@@ -184,10 +243,12 @@
       "missing_or_lower_than_committed_head": "INVALID",
       "payload_rule": "sha256_of_utf8_rfc8785_jcs_head_record_with_top_level_signature_removed_when_present",
       "record_id_uniqueness": "anchor_id_and_entry_id_values_are_unique_across_the_bundle",
+      "lineage_head_key_uniqueness": "exactly_one_lineage_head_item_per_lineage_id",
+      "duplicate_lineage_id_result": "INVALID_even_when_duplicate_items_are_identical",
       "same_epoch_different_head": "INVALID"
     },
     "revocation_profile": {
-      "authorization_time": "state_immediately_before_issued_at",
+      "authorization_time": "same_timestamp_frozen_authorization_snapshot",
       "dependency_invalidation": "recursive_non_revocation_records_depending_exclusively_on_revoked_authority_record",
       "durability": "authorized_revocation_remains_effective_if_issuer_is_later_revoked",
       "earlier_signatures_grandfathered": false,
@@ -233,31 +294,39 @@
         "rule": "Validate the bundle and every entry against the committed v0.3 schemas before using any field."
       },
       {
-        "id": "L3_CANONICALIZE",
+        "id": "L3_BUNDLE_INVARIANTS",
+        "rule": "Reject duplicate anchor or entry IDs and require exactly one lineage-head pin per lineage_id; any duplicate lineage_id is INVALID even if the duplicate pins are byte-identical."
+      },
+      {
+        "id": "L4_CANONICALIZE",
         "rule": "Remove exactly the top-level signature member and compute the RFC 8785 JCS UTF-8 payload and its SHA-256 digest."
       },
       {
-        "id": "L4_KEY_RESOLUTION",
+        "id": "L5_KEY_RESOLUTION",
         "rule": "Resolve signature.key_id uniquely from an external trust anchor or an already valid delegation, rotation, or recovery record; require it to equal issuer_key_id and the digest of the raw public key."
       },
       {
-        "id": "L5_SIGNATURE",
+        "id": "L6_IDENTITY_BINDING",
+        "rule": "Bind issuer_id, lineage_id, issuer_epoch, and issuer_key_id to the identity tuple introduced for the resolved key; a resolved mismatch or conflicting tuple for one key is INVALID, while missing material needed to resolve the tuple is INDETERMINATE."
+      },
+      {
+        "id": "L7_SIGNATURE",
         "rule": "Verify the 64 raw Ed25519 signature bytes over the canonical payload before evaluating authority semantics."
       },
       {
-        "id": "L6_AUTHORIZATION",
-        "rule": "At issued_at, require the signer to be current, unrevoked, in scope, and authorized for the entry-type permission."
+        "id": "L8_AUTHORIZE_BATCH",
+        "rule": "At each issued_at timestamp, authorize all entries against one frozen state after external-anchor boundaries and earlier-issued transition effects; require a current unrevoked signer, the entry-type permission, and grant scope containment, and forbid same-timestamp entries from authorizing one another."
       },
       {
-        "id": "L7_BOUNDARIES",
+        "id": "L9_BOUNDARIES",
         "rule": "Group already-authorized rotations, revocations, and recoveries by effective boundary; freeze the pre-boundary heads, apply the union of durable revocations, recursively suppress dependent non-revocation records, then check unsuppressed rotation and recovery predecessor preconditions against the frozen heads and apply every remaining eligible transition simultaneously without reauthorizing signers."
       },
       {
-        "id": "L8_LINEAGE",
+        "id": "L10_LINEAGE",
         "rule": "Build predecessor-linked epochs, reject unlinked increments and rollback, and return INDETERMINATE for competing successors at the same next epoch."
       },
       {
-        "id": "L9_RESOLUTION",
+        "id": "L11_RESOLUTION",
         "rule": "At validation_time, evaluate active precedence and current claims only after ledger state, scope, and lineage are fixed."
       }
     ]
@@ -271,6 +340,47 @@
   "base_commit": "3741aae69b779af36882705e7a8fb61bf734474a",
   "blind_case_minimum": 12,
   "blind_evaluation": {
+    "artifact_schema_contract": {
+      "closed_validation_algorithm": "scripts/validate_v03_artifact.py",
+      "closed_validation_mode": "complete-pack",
+      "duplicate_json_members": "REJECT",
+      "schema_files": {
+        "authorship_attestation": "docs/authorship-attestation.v0.3.schema.json",
+        "authorship_collection": "docs/authorship-collection.v0.3.schema.json",
+        "case_record": "docs/case-record.v0.3.schema.json",
+        "freeze_reveal_record": "docs/freeze-reveal-record.v0.3.schema.json",
+        "leakage_review_attestation": "docs/leakage-review-attestation.v0.3.schema.json",
+        "oracle_record": "docs/oracle-record.v0.3.schema.json",
+        "oracle_reveal_record": "docs/oracle-reveal-record.v0.3.schema.json",
+        "pack_manifest": "docs/sealed-pack-manifest.v0.3.schema.json",
+        "path_output_commitment": "docs/path-output-commitment.v0.3.schema.json",
+        "population_freeze_record": "docs/population-freeze-record.v0.3.schema.json",
+        "public_commitment": "docs/public-commitment.v0.3.schema.json",
+        "relatedness_graph": "docs/relatedness-graph.v0.3.schema.json",
+        "result_record": "docs/result-record.v0.3.schema.json"
+      },
+      "semantic_checks": [
+        "record_mode_never_certifies_a_complete_pack",
+        "complete_pack_mode_requires_every_archive_manifest_control_and_phase_artifact",
+        "case_ids_are_unique_in_the_sealed_input_pack",
+        "each_distinct_family_id_has_exactly_one_authorship_attestation",
+        "distinct_primary_authors_and_recomputed_relatedness_components_meet_post_exclusion_floors",
+        "every_committed_case_has_one_bound_PASS_leakage_record",
+        "canonical_USTAR_archives_contain_only_regular_files_with_exact_manifest_byte_size_and_digest_coverage",
+        "archive_bytes_equal_reference_USTAR_reserialization_including_zero_padding_to_the_next_10240_byte_record",
+        "manifest_paths_are_unique_and_unicode_code_point_sorted",
+        "manifest_paths_are_relative_posix_without_dot_segments",
+        "oracle_case_ids_exactly_equal_input_case_ids",
+        "two_distinct_annotations_and_one_distinct_adjudicator_are_required_per_oracle",
+        "oracle_rule_output_reason_and_provenance_relations_are_closed",
+        "oracle_rule_ids_and_reason_codes_are_unicode_code_point_sorted",
+        "aggregate_counts_equal_validated_pack_contents",
+        "population_freezes_before_input_reveal_and_exclusions_precede_population_freeze",
+        "one_timestamped_output_commitment_per_declared_path_precedes_oracle_reveal",
+        "final_receipt_binds_population_outputs_and_oracle_reveal_by_exact_digest"
+      ],
+      "unknown_properties": "REJECT"
+    },
     "authorship": {
       "author_conflict_rule": "ineligible_family",
       "minimum_distinct_primary_authors": 4,
@@ -281,23 +391,27 @@
         "primary_author_id",
         "coauthor_ids",
         "implementation_roles",
-        "shared_source_digests",
+        "shared_sources",
         "coordination_disclosures",
         "conflicts_of_interest",
         "attestation_timestamp",
-        "attestation_signature"
+        "declaration"
       ],
+      "declaration_authentication": "not_claimed;archive_commitment_prevents_silent_mutation_but_real_world_identity_and_eligibility_require_external_review",
       "shared_outcome_determining_source_rule": "same_independence_cluster"
     },
     "envelopes": {
       "public_commitment": {
         "allowed_before_freeze": [
+          "schema_version",
+          "approved_protocol_commit",
           "schema_versions",
           "aggregate_case_count",
           "aggregate_family_count",
           "sealed_input_pack_sha256",
           "sealed_oracle_pack_sha256",
-          "authorship_attestation_sha256",
+          "authorship_collection_sha256",
+          "relatedness_graph_sha256",
           "leakage_review_attestation_sha256"
         ],
         "prohibited_before_freeze": [
@@ -319,7 +433,23 @@
       },
       "sealed_oracle_pack": {
         "reveal_after": "all_path_outputs_digest_committed"
-      }
+      },
+      "archive_profile": {
+        "format": "USTAR_CANONICAL_V0.3.7",
+        "members": "regular_files_only",
+        "member_order": "ascending_unicode_code_point_path",
+        "metadata": "uid_0_gid_0_empty_names_mtime_0_mode_0644_no_pax",
+        "byte_serialization": "reference_USTAR_headers_and_zero_file_padding_two_zero_end_blocks_then_zero_padding_to_next_10240_byte_record",
+        "manifest_coverage": "exact_all_archive_files_with_byte_size_and_sha256",
+        "extraction": "never_extract_during_validation;read_member_bytes_only"
+      },
+      "phase_records": [
+        "population_freeze_record",
+        "path_output_commitment_per_declared_path",
+        "oracle_reveal_record",
+        "freeze_reveal_record"
+      ],
+      "phase_order": "population_freeze_before_input_reveal_before_or_equal_path_execution;all_output_commitments_strictly_before_oracle_reveal;final_receipt_at_or_after_oracle_reveal"
     },
     "leakage_review": {
       "allowed_dispositions": [
@@ -559,6 +689,91 @@
     "mechanism_unknown_output_rule": "V8_MECHANISM_UNKNOWN",
     "mixed_evidence_rule": "UNKNOWN_dominates_UNSATISFIED_dominates_SATISFIED"
   },
+  "oracle_record_relations": {
+    "authority_rule_by_status": {
+      "CONFLICT": "OA2_CONFLICT",
+      "INDETERMINATE": "OA4_UNKNOWN",
+      "INVALID": "OA3_INVALID",
+      "VALID": "OA1_VALID"
+    },
+    "evidence_rules_by_v_rule": {
+      "V1_READY": ["OE8_ALL_SATISFIED"],
+      "V2_HOLD": [
+        "OE1_REQUIRED_ABSENT",
+        "OE2_POLICY_FALSE",
+        "OE3_TRUST_OR_TIME_FALSE"
+      ],
+      "V3_EVIDENCE_UNKNOWN": [
+        "OE4_UNREADABLE",
+        "OE5_UNRESOLVED_CONTRADICTION",
+        "OE6_SEMANTICALLY_UNJUDGEABLE",
+        "OE7_INVENTORY_UNKNOWN"
+      ]
+    },
+    "allowed_reason_codes_by_v_rule": {
+      "V1_READY": [
+        "ALL_REQUIREMENTS_SATISFIED",
+        "AUTHORITY_VALID",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE"
+      ],
+      "V2_HOLD": [
+        "AUTHORITY_VALID",
+        "POLICY_UNSATISFIED",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REQUIRED_EVIDENCE_ABSENT",
+        "REVOCATION_EFFECTIVE",
+        "TRUST_OR_TIME_UNSATISFIED"
+      ],
+      "V3_EVIDENCE_UNKNOWN": [
+        "AUTHORITY_VALID",
+        "EVIDENCE_CONTRADICTION",
+        "EVIDENCE_UNREADABLE",
+        "INVENTORY_INCOMPLETE",
+        "PRECEDENCE_RESOLVED",
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE",
+        "SEMANTICALLY_UNJUDGEABLE"
+      ],
+      "V4_AUTHORITY_CONFLICT": [
+        "RECOVERY_EFFECTIVE",
+        "REVOCATION_EFFECTIVE",
+        "VALID_ISSUER_CONFLICT"
+      ],
+      "V5_AUTHORITY_INVALID": [
+        "AUTHORITY_INVALID",
+        "DUPLICATE_LINEAGE_HEAD",
+        "IDENTITY_BINDING_MISMATCH",
+        "ROLLBACK_DETECTED",
+        "SCOPE_ESCALATION",
+        "TRUST_OR_TIME_UNSATISFIED"
+      ],
+      "V6_AUTHORITY_UNKNOWN": ["AUTHORITY_INDETERMINATE"],
+      "V7_MECHANISM_NONCONFORMANT": ["MECHANISM_NONCONFORMANT"],
+      "V8_MECHANISM_UNKNOWN": ["MECHANISM_INDETERMINATE"]
+    },
+    "required_reason_codes_by_v_rule": {
+      "V1_READY": ["ALL_REQUIREMENTS_SATISFIED"],
+      "V2_HOLD": [
+        "POLICY_UNSATISFIED",
+        "REQUIRED_EVIDENCE_ABSENT",
+        "TRUST_OR_TIME_UNSATISFIED"
+      ],
+      "V3_EVIDENCE_UNKNOWN": [
+        "EVIDENCE_CONTRADICTION",
+        "EVIDENCE_UNREADABLE",
+        "INVENTORY_INCOMPLETE",
+        "SEMANTICALLY_UNJUDGEABLE"
+      ],
+      "V4_AUTHORITY_CONFLICT": ["VALID_ISSUER_CONFLICT"],
+      "V5_AUTHORITY_INVALID": ["AUTHORITY_INVALID"],
+      "V6_AUTHORITY_UNKNOWN": ["AUTHORITY_INDETERMINATE"],
+      "V7_MECHANISM_NONCONFORMANT": ["MECHANISM_NONCONFORMANT"],
+      "V8_MECHANISM_UNKNOWN": ["MECHANISM_INDETERMINATE"]
+    }
+  },
   "pass_conditions": {
     "allowed_false_ready": 0,
     "allowed_missed_authority_conflicts": 0,
@@ -575,15 +790,20 @@
   },
   "provenance_contract": {
     "array_ordering": {
-      "authority_chains": "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id)",
+      "authority_chains": "ascending_unicode_code_point_tuple(issuer_id,claim_entry_id,chain_sha256)",
+      "authority_evaluation_records": "ascending_unicode_code_point_tuple(record_id,payload_sha256)",
+      "authority_dependencies": "ascending_unicode_code_point_tuple(dependency_type,record_id,payload_sha256)",
+      "authorization_records_within_dependency": "semantic_chain_order_from_authorizing_anchor_to_dependency_record",
       "contract_records": "ascending_unicode_code_point_tuple(path,sha256)",
+      "decisive_for_within_dependency": "ascending_unicode_code_point",
       "evidence_records": "ascending_unicode_code_point_tuple(path,sha256)",
-      "records_within_authority_chain": "semantic_chain_order_from_anchor_or_delegation_to_claim",
+      "records_within_authority_chain": "semantic_chain_order_from_anchor_to_claim",
       "unevaluated_stages": "stage_order_suffix"
     },
     "authority_chain_required_fields": [
       "issuer_id",
       "claim_entry_id",
+      "chain_sha256",
       "records"
     ],
     "authority_record_required_fields": [
@@ -591,6 +811,29 @@
       "payload_sha256"
     ],
     "authority_record_digest": "sha256_of_utf8_rfc8785_jcs_record_with_top_level_signature_removed_when_present",
+    "authority_chain_digest": "sha256_of_utf8_rfc8785_jcs_object_containing_exactly_issuer_id_claim_entry_id_and_records",
+    "authority_chain_minimum_when_status_valid_or_conflict": 1,
+    "authority_dependency_required_fields": [
+      "dependency_type",
+      "record_id",
+      "payload_sha256",
+      "authorization_records",
+      "decisive_for"
+    ],
+    "authority_dependency_types": [
+      "identity_introduction",
+      "lineage_head",
+      "precedence",
+      "recovery",
+      "revocation"
+    ],
+    "authority_evaluation_record_required_fields": [
+      "record_id",
+      "payload_sha256",
+      "classification",
+      "decisive"
+    ],
+    "authority_evaluation_record_coverage": "exactly_every_anchor_recovery_anchor_and_signed_entry_in_the_case_authority_bundle",
     "conflict_minimum_authority_chains": 2,
     "exact_match": "ordered_paths_record_ids_and_sha256_digests",
     "file_record_required_fields": [
@@ -604,22 +847,32 @@
       },
       {
         "id": "PV2_AUTHORITY_CHAIN",
-        "rule": "Each decisive authority claim records issuer_id, claim_entry_id, and ordered records from its trust anchor or delegation through the claim, with the RFC 8785 payload SHA-256 for every record."
+        "rule": "Each decisive authority claim records issuer_id, claim_entry_id, chain_sha256, and ordered records from its trust anchor through the claim, with the RFC 8785 payload SHA-256 for every record. chain_sha256 is SHA-256 of the RFC 8785 JCS object containing exactly issuer_id, claim_entry_id, and records. At least one chain is required whenever authority_status is VALID or CONFLICT."
       },
       {
-        "id": "PV3_CONFLICT_COVERAGE",
+        "id": "PV3_AUTHORITY_DEPENDENCIES",
+        "rule": "Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list; no side dependency may be appended to a claim chain."
+      },
+      {
+        "id": "PV4_CONFLICT_COVERAGE",
         "rule": "AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid."
       },
       {
-        "id": "PV4_SHORT_CIRCUIT",
+        "id": "PV5_SHORT_CIRCUIT",
         "rule": "When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance."
+      },
+      {
+        "id": "PV6_BUNDLE_COVERAGE",
+        "rule": "authority_evaluation_records contains every trust anchor, recovery anchor, and signed entry in the exact authority bundle once, with its recomputed payload digest, classification, and decisive flag; every reported chain or dependency resolves to that closed index, every claim endpoint is decisive, and required dependency types are present."
       }
     ],
     "path_format": "relative_posix_without_dot_segments_and_present_in_permitted_inputs_manifest",
     "provenance_required_fields": [
       "authority_bundle_path",
       "authority_bundle_sha256",
+      "authority_evaluation_records",
       "authority_chains",
+      "authority_dependencies",
       "contract_records",
       "evidence_records",
       "unevaluated_stages"
@@ -632,7 +885,30 @@
     ],
     "unevaluated_stages_rule": "ordered_suffix_of_stage_order"
   },
-  "schema_version": "agent-context-proof-protocol-v0.3.5",
+  "reason_codes": [
+    "ALL_REQUIREMENTS_SATISFIED",
+    "AUTHORITY_INDETERMINATE",
+    "AUTHORITY_INVALID",
+    "AUTHORITY_VALID",
+    "DUPLICATE_LINEAGE_HEAD",
+    "EVIDENCE_CONTRADICTION",
+    "EVIDENCE_UNREADABLE",
+    "IDENTITY_BINDING_MISMATCH",
+    "INVENTORY_INCOMPLETE",
+    "MECHANISM_INDETERMINATE",
+    "MECHANISM_NONCONFORMANT",
+    "POLICY_UNSATISFIED",
+    "PRECEDENCE_RESOLVED",
+    "RECOVERY_EFFECTIVE",
+    "REQUIRED_EVIDENCE_ABSENT",
+    "REVOCATION_EFFECTIVE",
+    "ROLLBACK_DETECTED",
+    "SCOPE_ESCALATION",
+    "SEMANTICALLY_UNJUDGEABLE",
+    "TRUST_OR_TIME_UNSATISFIED",
+    "VALID_ISSUER_CONFLICT"
+  ],
+  "schema_version": "agent-context-proof-protocol-v0.3.7",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",

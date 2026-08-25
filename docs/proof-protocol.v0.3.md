@@ -107,8 +107,8 @@ drift.
 | --- | --- |
 | `canonicalization` | Parse strict I-JSON with duplicate member names rejected, validate the entry schema, remove only the top-level signature member, and canonicalize the remaining payload with RFC 8785 JCS. |
 | `signature` | Use Ed25519 over the UTF-8 JCS bytes; encode signatures as unpadded base64url and key IDs as sha256:<lowercase hex SHA-256 of the 32 raw public-key bytes>. |
-| `time` | Use UTC RFC 3339 timestamps ending in Z and half-open validity intervals [not_before, not_after); a missing not_after means no scheduled end; authorize each entry once at issued_at, then apply an already-authorized delayed transition at its effective boundary without reauthorizing the signer. |
-| `scope` | Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; specificity never creates implicit precedence. |
+| `time` | Use UTC RFC 3339 timestamps ending in Z and finite half-open validity intervals [not_before, not_after), with not_after required and strictly later than not_before; require issued_at == not_before for claim, delegation, and precedence entries; at each timestamp activate external anchors and apply earlier-issued transition effects before authorizing one same-timestamp entry batch, then apply that batch's immediate effects; no entry may authorize another entry issued at the same timestamp. |
+| `scope` | Resolve organization, repository, artifact, and action coordinates by exact string or the entire-field wildcard *; require every signed entry scope to be component-wise contained by each grant that authorizes it, so an exact field can never expand to *; specificity never creates implicit precedence. |
 | `epoch` | Use non-negative integers comparable only within one lineage; accept only a predecessor-signed successor at predecessor epoch plus one, and let the highest validated effective epoch dominate older lineage entries. |
 | `revocation` | A valid revocation applies at and after effective_at, including to non-revocation records signed earlier; it must be signed by a then-valid authority whose scope grants revoke for the target, and the revocation action remains durable if its signer is later revoked. |
 | `rollback` | Externally committed lineage heads pin the expected effective epoch and payload; a lower or different presented head is rollback and INVALID, while historical transition records remain chain provenance. |
@@ -125,12 +125,12 @@ The following table is normative and mirrored in the machine protocol.
 
 | Entry type | Required type-specific fields | Authority rule |
 | --- | --- | --- |
-| `delegation` | `subject_issuer_id`, `subject_key_id`, `subject_public_key_base64url`, `subject_lineage_id`, `subject_epoch`, `permissions` | The signer must be current at issued_at and hold delegate permission for the matching scope; permissions are unique and Unicode-code-point sorted. |
-| `rotation` | `predecessor_entry_id`, `successor_issuer_id`, `successor_key_id`, `successor_public_key_base64url`, `successor_permissions`, `successor_epoch` | The current predecessor signs one successor in the same lineage at issuer_epoch plus one; it becomes effective at not_before. |
-| `revocation` | `target_entry_id`, `target_issuer_id`, `effective_at` | A signer valid immediately before issued_at must hold revoke permission; target_entry_id must uniquely resolve to an authority-introduction record whose introduced issuer is target_issuer_id, and the grant is durably revoked when validation_time is at or after effective_at. |
-| `precedence` | `higher_issuer_id`, `lower_issuer_id` | A current signer with set_precedence permission creates one directed edge only for matching scope and the entry validity interval. |
-| `recovery` | `compromised_issuer_id`, `compromised_lineage_id`, `predecessor_entry_id`, `replacement_issuer_id`, `replacement_key_id`, `replacement_public_key_base64url`, `replacement_lineage_id`, `replacement_epoch`, `replacement_permissions`, `effective_at` | The signer must resolve from the separate recovery trust-anchor set with recover permission; at effective_at, predecessor_entry_id must be the current head of compromised_lineage_id for compromised_issuer_id, replacement_lineage_id must equal that lineage, and replacement_epoch must equal the predecessor epoch plus one. |
-| `claim` | `claim_name`, `claim_value` | The signer must be current at validation_time and hold claim permission for the complete case coordinate. |
+| `delegation` | `subject_issuer_id`, `subject_key_id`, `subject_public_key_base64url`, `subject_lineage_id`, `subject_epoch`, `permissions` | The signer must be current in the issued_at batch snapshot, hold delegate permission, and have a grant scope that contains the entry scope; the entry scope becomes the subject grant scope, and permissions are unique and Unicode-code-point sorted. |
+| `rotation` | `predecessor_entry_id`, `successor_issuer_id`, `successor_key_id`, `successor_public_key_base64url`, `successor_permissions`, `successor_epoch` | The current predecessor signs one successor in the same lineage at issuer_epoch plus one; the predecessor's rotate grant scope must contain the entry scope, which becomes the successor grant scope, and the rotation becomes effective at not_before. |
+| `revocation` | `target_entry_id`, `target_issuer_id`, `effective_at` | The signer must be current in the issued_at batch snapshot and hold a revoke grant containing the complete target grant scope; entry scope must equal that target scope, target_entry_id must uniquely resolve to an authority-introduction record whose introduced issuer is target_issuer_id, and the grant is durably revoked when validation_time is at or after effective_at. |
+| `precedence` | `higher_issuer_id`, `lower_issuer_id` | A signer current in the issued_at batch snapshot with set_precedence permission creates one directed edge for the entry validity interval only when the signer grant and both endpoint authority scopes contain the edge scope. |
+| `recovery` | `compromised_issuer_id`, `compromised_lineage_id`, `predecessor_entry_id`, `replacement_issuer_id`, `replacement_key_id`, `replacement_public_key_base64url`, `replacement_lineage_id`, `replacement_epoch`, `replacement_permissions`, `effective_at` | The signer must resolve from the separate recovery trust-anchor set with recover permission whose scope, together with the compromised predecessor scope, contains the entry scope; at effective_at, predecessor_entry_id must be the current head of compromised_lineage_id for compromised_issuer_id, replacement_lineage_id must equal that lineage, replacement_epoch must equal the predecessor epoch plus one, and entry scope becomes the replacement grant scope. |
+| `claim` | `claim_name`, `claim_value` | The signer must be current at validation_time and hold a claim grant whose scope contains the entry scope; the entry scope must match the complete concrete case coordinate. |
 
 Every entry carries the common fields pinned by the entry schema. Trust anchors
 are external bundle inputs, not self-signed ledger entries. A `rotation` is the
@@ -150,19 +150,36 @@ delegations grant only their listed permissions. A recovery signer must resolve
 from `recovery_trust_anchors`; membership in the compromised lineage cannot
 authorize recovery.
 
+Every authorization edge also carries a scope-containment obligation. For each
+of `organization`, `repository`, `artifact`, and `action`, parent scope `P`
+contains child scope `C` exactly when `P` is `*` or `P == C`. The relation is
+applied component by component; there are no partial-field wildcards. A parent
+exact value therefore cannot authorize child `*`. Such expansion is `INVALID`.
+Delegation, rotation, and recovery use their entry scope as the introduced
+subject or successor grant scope. Rotation scope must be contained by the
+predecessor's rotate grant; recovery scope by both the compromised predecessor
+and recovery-anchor grants. A revocation must name the complete target grant
+scope, that scope must be contained by the signer's revoke grant, and the entry
+scope must equal it. A precedence edge must be contained by the signer's
+set-precedence grant and by current grants for both endpoint authorities. A
+claim grant contains the claim entry scope, which must match the concrete case
+coordinate.
+
 ### Ledger validation order
 
 | Rule ID | Normative operation |
 | --- | --- |
 | `L1_PARSE` | Parse strict I-JSON, rejecting duplicate member names, malformed Unicode, non-finite numbers, and unsafe numeric values. |
 | `L2_SCHEMA` | Validate the bundle and every entry against the committed v0.3 schemas before using any field. |
-| `L3_CANONICALIZE` | Remove exactly the top-level signature member and compute the RFC 8785 JCS UTF-8 payload and its SHA-256 digest. |
-| `L4_KEY_RESOLUTION` | Resolve signature.key_id uniquely from an external trust anchor or an already valid delegation, rotation, or recovery record; require it to equal issuer_key_id and the digest of the raw public key. |
-| `L5_SIGNATURE` | Verify the 64 raw Ed25519 signature bytes over the canonical payload before evaluating authority semantics. |
-| `L6_AUTHORIZATION` | At issued_at, require the signer to be current, unrevoked, in scope, and authorized for the entry-type permission. |
-| `L7_BOUNDARIES` | Group already-authorized rotations, revocations, and recoveries by effective boundary; freeze the pre-boundary heads, apply the union of durable revocations, recursively suppress dependent non-revocation records, then check unsuppressed rotation and recovery predecessor preconditions against the frozen heads and apply every remaining eligible transition simultaneously without reauthorizing signers. |
-| `L8_LINEAGE` | Build predecessor-linked epochs, reject unlinked increments and rollback, and return INDETERMINATE for competing successors at the same next epoch. |
-| `L9_RESOLUTION` | At validation_time, evaluate active precedence and current claims only after ledger state, scope, and lineage are fixed. |
+| `L3_BUNDLE_INVARIANTS` | Reject duplicate anchor or entry IDs and require exactly one lineage-head pin per lineage_id; any duplicate lineage_id is INVALID even if the duplicate pins are byte-identical. |
+| `L4_CANONICALIZE` | Remove exactly the top-level signature member and compute the RFC 8785 JCS UTF-8 payload and its SHA-256 digest. |
+| `L5_KEY_RESOLUTION` | Resolve signature.key_id uniquely from an external trust anchor or an already valid delegation, rotation, or recovery record; require it to equal issuer_key_id and the digest of the raw public key. |
+| `L6_IDENTITY_BINDING` | Bind issuer_id, lineage_id, issuer_epoch, and issuer_key_id to the identity tuple introduced for the resolved key; a resolved mismatch or conflicting tuple for one key is INVALID, while missing material needed to resolve the tuple is INDETERMINATE. |
+| `L7_SIGNATURE` | Verify the 64 raw Ed25519 signature bytes over the canonical payload before evaluating authority semantics. |
+| `L8_AUTHORIZE_BATCH` | At each issued_at timestamp, authorize all entries against one frozen state after external-anchor boundaries and earlier-issued transition effects; require a current unrevoked signer, the entry-type permission, and grant scope containment, and forbid same-timestamp entries from authorizing one another. |
+| `L9_BOUNDARIES` | Group already-authorized rotations, revocations, and recoveries by effective boundary; freeze the pre-boundary heads, apply the union of durable revocations, recursively suppress dependent non-revocation records, then check unsuppressed rotation and recovery predecessor preconditions against the frozen heads and apply every remaining eligible transition simultaneously without reauthorizing signers. |
+| `L10_LINEAGE` | Build predecessor-linked epochs, reject unlinked increments and rollback, and return INDETERMINATE for competing successors at the same next epoch. |
+| `L11_RESOLUTION` | At validation_time, evaluate active precedence and current claims only after ledger state, scope, and lineage are fixed. |
 
 Strict I-JSON parsing rejects duplicate member names before schema validation.
 The signature payload is the UTF-8 RFC 8785 JCS serialization after removing
@@ -170,6 +187,18 @@ exactly the top-level `signature` member. `signature.key_id` must equal
 `issuer_key_id` and `sha256:<lowercase hex>` of the raw 32-byte public key. The
 signature value is the unpadded base64url encoding of the raw 64-byte Ed25519
 signature.
+
+Key possession does not establish declared identity. After key resolution, the
+resolver constructs the introduced identity tuple `(issuer_id, lineage_id,
+epoch, key_id)` from the trust anchor or from the subject, successor, or
+replacement fields of a valid delegation, rotation, or recovery. The entry's
+common `(issuer_id, lineage_id, issuer_epoch, issuer_key_id)` tuple must match
+that introduced tuple exactly. A resolved mismatch in any field is `INVALID`.
+If currently valid introduction records assign one key to different identity
+tuples, every entry using that colliding key is `INVALID`. Multiple supporting
+records for the same tuple are allowed, but every decisive supporting chain is
+preserved in provenance. Missing material needed to resolve the tuple is
+`INDETERMINATE`.
 
 The deterministic golden records in
 [`authority-ledger.v0.3.vectors.json`](../tests/fixtures/authority-ledger.v0.3.vectors.json)
@@ -184,6 +213,9 @@ does not establish a rotation. Different successor issuer/key tuples at the
 same lineage and next epoch make authority validation `INDETERMINATE`;
 compatible endorsements of the same tuple do not. Each bundle carries external
 lineage-head pins over lineage, epoch, record ID, and canonical payload digest.
+There must be exactly one `lineage_heads` item for each `lineage_id`. Repeating
+a lineage ID makes the bundle `INVALID`, even when the repeated items are
+identical; array order never selects a winning pin.
 At epoch zero, the head record is a trust anchor or valid delegation; at later
 epochs it is a valid rotation or recovery. A compatible same-epoch
 re-endorsement does not change the head. Anchor IDs and entry IDs must be unique
@@ -200,15 +232,31 @@ active precedence signer below the current effective epoch cannot act as
 current authority. A revocation takes effect on its boundary: an earlier
 signature is not grandfathered when evaluated at or after that time.
 
-All entry signatures and permissions are authorized exactly once against the
-state immediately before `issued_at`. A delayed transition does not reauthorize
-its signer at `effective_at`. Immediately before a boundary, the resolver checks
-only transition preconditions: a rotation or recovery must still name the
-current predecessor head. A resolved mismatch is `INVALID`; missing material
-needed to decide the precondition is `INDETERMINATE`. Revocations have no
-current-signer precondition at the boundary and therefore remain effective even
-if their issuer later rotates out, provided the revocation was validly
-authorized when issued.
+At each timestamp `t`, the resolver uses this total event order:
+
+1. Activate external anchors with `not_before == t`, expire intervals ending at
+   `t`, and freeze the resulting state.
+2. Apply transition effects at `t` only for entries whose `issued_at < t`, using
+   the boundary algorithm below.
+3. Freeze one authorization snapshot and authorize every entry with
+   `issued_at == t` against that same snapshot. No entry in this batch may
+   introduce authority used by another entry in the batch.
+4. Apply as one order-independent boundary batch every authorized claim,
+   delegation, or precedence entry (whose required `not_before` equals `t`) and
+   every authorized rotation, revocation, or recovery whose effective boundary
+   equals `t`.
+
+Thus an external anchor whose `not_before` equals an entry's `issued_at` can
+authorize that entry, while a delegation issued at `t` cannot authorize a
+second entry also issued at `t`. All entry signatures and permissions are
+authorized exactly once against the step-3 snapshot. A delayed transition does
+not reauthorize its signer at `effective_at`. At an effect boundary, the
+resolver checks only transition preconditions: a rotation or recovery must
+still name the current predecessor head. A resolved mismatch is `INVALID`;
+missing material needed to decide the precondition is `INDETERMINATE`.
+Revocations have no current-signer precondition at the boundary and therefore
+remain effective even if their issuer later rotates out, provided the
+revocation was validly authorized when issued.
 
 A revocation target is one authority-introduction record: a trust anchor,
 delegation, rotation, or recovery. `target_entry_id` must resolve uniquely to
@@ -237,10 +285,15 @@ suppresses that rotation, while an independently authorized recovery may still
 replace the frozen compromised head. An unresolved target, dependency, or
 precondition that could alter the decision is `INDETERMINATE`.
 
-For every entry, `issued_at` must be at or before `not_before`. For a delayed
-rotation, revocation, or recovery, `not_before` must be at or before its
-effective boundary, and that boundary must fall inside the entry's validity
-interval. A resolved ordering violation is `INVALID`.
+Every entry and external anchor has a required finite `not_after`, and
+`not_before < not_after`. For claim, delegation, and precedence,
+`issued_at == not_before`; those non-transition records have no pending state.
+For rotation, revocation, and recovery,
+`issued_at <= not_before <= effective_at < not_after`. A transition whose
+effective boundary equals `issued_at` is applied in step 4; a later boundary is
+applied in step 2 and its signer is not reauthorized there. Any resolved
+ordering violation is `INVALID`. These comparisons use parsed UTC instants,
+not lexical timestamp order.
 
 Recovery never creates an unrelated lineage in v0.3. Its predecessor must be
 the current head for `compromised_issuer_id` in `compromised_lineage_id`
@@ -328,6 +381,16 @@ missing requirement is `INDETERMINATE`, while a complete inventory proving
 absence with no unknown requirement is `HOLD`. A validly signed free-form claim
 without a policy mapping is semantically unjudgeable, not negative evidence.
 
+Oracle and result envelopes use a closed relation table. Each output triplet has
+exactly one matching `V` rule. A conformant authority result has exactly the
+matching `OA` rule; `OA1_VALID` also has one or more disposition-compatible
+`OE` rules, while mechanism failure records only `V7` or `V8`. Reason codes must
+be a nonempty subset of the `oracle_record_relations` allowlist for that `V`
+rule and must include at least one code from its required set. Thus a `READY`
+record cannot cite `OA4_UNKNOWN`, `V6_AUTHORITY_UNKNOWN`, or
+`AUTHORITY_INVALID`. The standalone validator applies the same committed maps
+to final oracles, both embedded annotations, adjudications, and result records.
+
 ### Provenance requirements
 
 Provenance is route-specific but never optional for a stage that was reached.
@@ -336,15 +399,24 @@ The rules below are normative and mirrored in the machine protocol.
 | Rule ID | Normative rule |
 | --- | --- |
 | `PV1_REACHED_STAGES` | Record exact paths, record IDs, and digests for every evaluation stage reached; list every stage skipped by an earlier terminal classification in unevaluated_stages. |
-| `PV2_AUTHORITY_CHAIN` | Each decisive authority claim records issuer_id, claim_entry_id, and ordered records from its trust anchor or delegation through the claim, with the RFC 8785 payload SHA-256 for every record. |
-| `PV3_CONFLICT_COVERAGE` | AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid. |
-| `PV4_SHORT_CIRCUIT` | When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance. |
+| `PV2_AUTHORITY_CHAIN` | Each decisive authority claim records issuer_id, claim_entry_id, chain_sha256, and ordered records from its trust anchor through the claim, with the RFC 8785 payload SHA-256 for every record. chain_sha256 is SHA-256 of the RFC 8785 JCS object containing exactly issuer_id, claim_entry_id, and records. At least one chain is required whenever authority_status is VALID or CONFLICT. |
+| `PV3_AUTHORITY_DEPENDENCIES` | Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list; no side dependency may be appended to a claim chain. |
+| `PV4_CONFLICT_COVERAGE` | AUTHORITY_CONFLICT records one authority_chains item for every undominated conflicting claim and therefore at least two; an empty authority_chains array is invalid. |
+| `PV5_SHORT_CIRCUIT` | When authority does not route to evidence classification, contract_records and evidence_records are empty and contract and evidence are listed in unevaluated_stages; this means not evaluated, not absent authority provenance. |
+| `PV6_BUNDLE_COVERAGE` | authority_evaluation_records contains every trust anchor, recovery anchor, and signed entry in the exact authority bundle once, with its recomputed payload digest, classification, and decisive flag; every reported chain or dependency resolves to that closed index, every claim endpoint is decisive, and required dependency types are present. |
 
 The authority bundle itself is recorded by path and byte digest. Within each
 authority chain, `records` are ordered from the trust anchor or delegation to
 the decisive claim. Every record carries its ID and SHA-256 of the UTF-8 RFC
-8785 JCS payload with the top-level signature removed when present. Contract and
-evidence provenance records use exact permitted-input paths and byte digests.
+8785 JCS payload with the top-level signature removed when present. Decisive
+identity introductions, lineage-head pins, precedence edges, recoveries, and
+revocations are separate `authority_dependencies` records. Each dependency
+records its type, record ID and digest, its semantic authorization path, and a
+`decisive_for` list naming the claim or dependency record IDs whose resolved
+state it determines. This is a canonical dependency representation: a
+precedence, recovery, or revocation record is never appended to a linear claim
+chain. Contract and evidence provenance records use exact permitted-input paths
+and byte digests.
 All paths are relative POSIX paths without dot segments and must appear in the
 permitted-input manifest. Evaluation stage order is authority, contract, then
 evidence; `unevaluated_stages` must be an ordered suffix of that sequence. The
@@ -353,11 +425,15 @@ contract pins the required fields for the provenance object, authority-chain
 items, authority records, and file records.
 
 Array ordering is canonical. `authority_chains` sort by the Unicode-code-point
-tuple `(issuer_id, claim_entry_id)`. Contract and evidence records sort by
-`(path, sha256)`. Records inside one authority chain retain semantic chain order
-from anchor or delegation to claim, and `unevaluated_stages` retains stage
-order. Two outputs with identical members in a different order are not both
-canonical.
+tuple `(issuer_id, claim_entry_id, chain_sha256)`. The digest supplies a total
+order for multiple support paths to one claim. `authority_dependencies` sort by
+`(dependency_type, record_id, payload_sha256)`; each dependency's
+`authorization_records` retain semantic order from its authorizing anchor to
+the dependency record, and `decisive_for` sorts by Unicode code point. Contract
+and evidence records sort by `(path, sha256)`. Records inside one authority
+chain retain semantic chain order from anchor to claim, and
+`unevaluated_stages` retains stage order. Two outputs with identical members in
+a different order are not both canonical.
 
 ## Planned case families
 

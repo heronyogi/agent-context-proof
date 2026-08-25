@@ -10,6 +10,17 @@ source, production data, or internal names are included.
 > has no evaluator implementation, sealed cases, or experimental result. The
 > approved v0.2.2 implementation and results remain separate historical work.
 
+## Start here
+
+| Goal | Read |
+| --- | --- |
+| Understand the current claim and its limits | This README and [`docs/proof-protocol.md`](docs/proof-protocol.md) |
+| Review the v0.3.7 protocol successor | [`docs/v0.3-review-guide.md`](docs/v0.3-review-guide.md) |
+| Inspect the exact review-state reconciliation | [`v0.3.5 reconciliation`](docs/reviews/v0.3.5-reconciliation-2026-08-24.json) and [`v0.3.6 review disposition`](docs/reviews/v0.3.6-review-disposition-2026-08-24.json) |
+| Inspect the machine contract and strict schemas | [`docs/proof-protocol.v0.3.json`](docs/proof-protocol.v0.3.json) and [`docs/case-authoring.v0.3.md`](docs/case-authoring.v0.3.md) |
+| Reproduce the approved v0.2.2 result | [Reproduction instructions](#reproduce-the-deterministic-proof) |
+| Understand federation boundaries | [`SYSTEM.md`](SYSTEM.md), [`CONTRACTS.md`](CONTRACTS.md), and [`federation/fet-001/`](federation/fet-001/) |
+
 Reviewers should start with the
 [`v0.3 reviewer guide`](docs/v0.3-review-guide.md), which maps the normative
 artifacts, review boundary, workflow triggers, and validation commands.
@@ -38,6 +49,16 @@ The draft now also pins strict
 reproducible [Ed25519/JCS reference vectors](tests/fixtures/authority-ledger.v0.3.vectors.json).
 The vectors contain intentionally public, test-only private seeds for
 conformance testing. They are not production authority data or credentials.
+
+The v0.3.7 successor carries forward the signer-identity, timestamp-order,
+scope-containment, lineage-pin, and provenance corrections, then addresses the
+three blockers found in the exact-object v0.3.6 review: delayed authority
+activation, provenance totality, and complete sealing-workflow validation.
+Thirteen strict experiment-artifact schemas and
+[`scripts/validate_v03_artifact.py`](scripts/validate_v03_artifact.py) provide
+separate record-shape and closed complete-pack validation. These changes remain
+a protocol candidate until separately reviewed; they do not open implementation
+or case-sealing authority by themselves.
 
 ## What v0.2 tests
 

@@ -60,7 +60,8 @@
         "epoch",
         "permissions",
         "scope",
-        "not_before"
+        "not_before",
+        "not_after"
       ],
       "type": "object"
     },
@@ -162,11 +163,14 @@
       "type": "array"
     },
     "lineage_heads": {
+      "description": "Exactly one item is permitted per lineage_id. The standalone v0.3 structural validator enforces keyed uniqueness; duplicate lineage_id values make the bundle INVALID even when the items differ or are identical.",
       "items": {
         "$ref": "#/$defs/lineage_head"
       },
       "minItems": 1,
-      "type": "array"
+      "type": "array",
+      "uniqueItems": true,
+      "x-keyed-unique-by": "lineage_id"
     },
     "recovery_trust_anchors": {
       "items": {
@@ -176,7 +180,7 @@
       "type": "array"
     },
     "schema_version": {
-      "const": "agent-context-proof-authority-bundle-v0.3.1"
+      "const": "agent-context-proof-authority-bundle-v0.3.3"
     },
     "trust_anchors": {
       "items": {
@@ -198,6 +202,6 @@
     "lineage_heads",
     "entries"
   ],
-  "title": "Agent Context Proof v0.3 authority-ledger bundle",
+  "title": "Agent Context Proof v0.3.3 authority-ledger bundle",
   "type": "object"
 }
