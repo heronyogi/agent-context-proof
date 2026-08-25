@@ -287,7 +287,7 @@
     "validation_order": [
       {
         "id": "L1_PARSE",
-        "rule": "Parse strict I-JSON, rejecting duplicate member names, malformed Unicode, non-finite numbers, and unsafe numeric values."
+        "rule": "Parse strict I-JSON, rejecting duplicate member names and malformed Unicode. Accept only numeric values that are mathematically integral and within [-9007199254740991, 9007199254740991], independent of integer, decimal, or exponent spelling; normalize every accepted numeric form to that exact integer before schema validation and JCS canonicalization."
       },
       {
         "id": "L2_SCHEMA",
@@ -353,18 +353,23 @@
         "oracle_record": "docs/oracle-record.v0.3.schema.json",
         "oracle_reveal_record": "docs/oracle-reveal-record.v0.3.schema.json",
         "pack_manifest": "docs/sealed-pack-manifest.v0.3.schema.json",
+        "path_artifact_manifest": "docs/path-artifact-manifest.v0.3.schema.json",
         "path_output_commitment": "docs/path-output-commitment.v0.3.schema.json",
+        "path_run_record": "docs/path-run-record.v0.3.schema.json",
         "population_freeze_record": "docs/population-freeze-record.v0.3.schema.json",
         "public_commitment": "docs/public-commitment.v0.3.schema.json",
         "relatedness_graph": "docs/relatedness-graph.v0.3.schema.json",
-        "result_record": "docs/result-record.v0.3.schema.json"
+        "result_record": "docs/result-record.v0.3.schema.json",
+        "trace_record": "docs/trace-record.v0.3.schema.json"
       },
       "semantic_checks": [
         "record_mode_never_certifies_a_complete_pack",
         "complete_pack_mode_requires_every_archive_manifest_control_and_phase_artifact",
         "case_ids_are_unique_in_the_sealed_input_pack",
         "each_distinct_family_id_has_exactly_one_authorship_attestation",
-        "distinct_primary_authors_and_recomputed_relatedness_components_meet_post_exclusion_floors",
+        "distinct_primary_authors_and_recomputed_relatedness_components_meet_committed_population_floors",
+        "relatedness_edges_exactly_equal_unique_canonical_edges_derived_from_disclosed_authors_sources_and_coordination",
+        "relatedness_evidence_sha256_equals_the_JCS_digest_of_the_exact_disclosed_evidence_object",
         "every_committed_case_has_one_bound_PASS_leakage_record",
         "canonical_USTAR_archives_contain_only_regular_files_with_exact_manifest_byte_size_and_digest_coverage",
         "archive_bytes_equal_reference_USTAR_reserialization_including_zero_padding_to_the_next_10240_byte_record",
@@ -372,11 +377,18 @@
         "manifest_paths_are_relative_posix_without_dot_segments",
         "oracle_case_ids_exactly_equal_input_case_ids",
         "two_distinct_annotations_and_one_distinct_adjudicator_are_required_per_oracle",
+        "EXACT_AGREEMENT_if_and_only_if_both_annotations_equal_the_final_oracle",
         "oracle_rule_output_reason_and_provenance_relations_are_closed",
         "oracle_rule_ids_and_reason_codes_are_unicode_code_point_sorted",
         "aggregate_counts_equal_validated_pack_contents",
-        "population_freezes_before_input_reveal_and_exclusions_precede_population_freeze",
+        "committed_pack_case_exclusions_are_empty_and_any_committed_case_defect_invalidates_the_experiment",
+        "one_frozen_repeat_count_applies_to_every_declared_path",
+        "canonical_result_and_trace_archives_exactly_cover_every_case_path_repeat_coordinate",
+        "complete_path_runs_bind_schema_valid_results_and_exact_trace_bytes_while_typed_failures_remain_visible",
+        "trace_records_bind_frozen_observer_rules_and_events_occur_between_input_reveal_and_output_commitment",
+        "output_commitments_recompute_and_bind_exact_result_and_trace_archive_and_manifest_bytes",
         "one_timestamped_output_commitment_per_declared_path_precedes_oracle_reveal",
+        "all_JSON_numbers_normalize_to_exact_safe_integers_independent_of_lexical_form",
         "final_receipt_binds_population_outputs_and_oracle_reveal_by_exact_digest"
       ],
       "unknown_properties": "REJECT"
@@ -398,6 +410,13 @@
         "declaration"
       ],
       "declaration_authentication": "not_claimed;archive_commitment_prevents_silent_mutation_but_real_world_identity_and_eligibility_require_external_review",
+      "relatedness_evidence_object_fields": [
+        "coordination_evidence_sha256s",
+        "family_ids",
+        "outcome_determining_source_sha256s",
+        "shared_author_ids"
+      ],
+      "relatedness_evidence_digest": "sha256_lowercase_hex_of_UTF-8_RFC8785_JCS_with_all_four_sorted_array_fields_present",
       "shared_outcome_determining_source_rule": "same_independence_cluster"
     },
     "envelopes": {
@@ -435,7 +454,7 @@
         "reveal_after": "all_path_outputs_digest_committed"
       },
       "archive_profile": {
-        "format": "USTAR_CANONICAL_V0.3.7",
+        "format": "USTAR_CANONICAL_V0.3.8",
         "members": "regular_files_only",
         "member_order": "ascending_unicode_code_point_path",
         "metadata": "uid_0_gid_0_empty_names_mtime_0_mode_0644_no_pax",
@@ -450,6 +469,21 @@
         "freeze_reveal_record"
       ],
       "phase_order": "population_freeze_before_input_reveal_before_or_equal_path_execution;all_output_commitments_strictly_before_oracle_reveal;final_receipt_at_or_after_oracle_reveal"
+    },
+    "result_trace_closure": {
+      "coordinate_matrix": "every_included_case_x_every_declared_path_x_every_repeat_index_exactly_once",
+      "result_member_path": "results/<path_id>/<case_id>/<repeat_index>.json",
+      "trace_member_path": "traces/<path_id>/<case_id>/<repeat_index>.json",
+      "run_statuses": [
+        "COMPLETE",
+        "MISSING",
+        "ERROR",
+        "SCHEMA_INVALID"
+      ],
+      "complete_run": "embeds_one_schema_valid_result_and_binds_exact_trace_bytes",
+      "failed_run": "typed_failure_remains_in_matrix_and_never_becomes_an_exclusion",
+      "observer_rule_binding": "each_trace_binds_the_frozen_rules_for_its_path",
+      "structural_validity_is_not_a_pass_claim": true
     },
     "leakage_review": {
       "allowed_dispositions": [
@@ -851,7 +885,7 @@
       },
       {
         "id": "PV3_AUTHORITY_DEPENDENCIES",
-        "rule": "Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list; no side dependency may be appended to a claim chain."
+        "rule": "Record every decisive identity introduction, lineage-head pin, precedence edge, recovery, and revocation in authority_dependencies with its own authorization chain and a sorted decisive_for list naming claim endpoints only. A claim chain may contain only its connected authority-introduction spine—delegation, rotation, or recovery—between the external anchor and claim; precedence and revocation side dependencies are never appended."
       },
       {
         "id": "PV4_CONFLICT_COVERAGE",
@@ -908,15 +942,15 @@
     "TRUST_OR_TIME_UNSATISFIED",
     "VALID_ISSUER_CONFLICT"
   ],
-  "schema_version": "agent-context-proof-protocol-v0.3.7",
+  "schema_version": "agent-context-proof-protocol-v0.3.8",
   "scoring_population": {
     "case_accuracy_denominator": "included_unique_case_ids",
     "candidate_population": "all_case_ids_in_committed_sealed_input_pack",
     "comparator_accuracy_gates_proof": false,
     "comparator_population": "same_included_case_ids",
-    "exclusion_deadline": "before_first_path_execution_and_before_oracle_reveal",
+    "exclusion_deadline": "before_candidate_pack_commitment_only;committed_candidates_cannot_be_individually_excluded",
     "governed_missing_or_error": "count_as_failure_never_exclude",
-    "minimum_after_exclusions": {
+    "minimum_committed_population": {
       "cases": 12,
       "distinct_primary_authors": 4,
       "independence_clusters": 4
@@ -928,11 +962,11 @@
       },
       {
         "id": "P2_INCLUDE",
-        "rule": "Include a candidate only when it passed blinded leakage review before pack commitment and passes structural validation before any path executes."
+        "rule": "Commit a candidate only after it passed blinded leakage review and closed structural validation. Every committed candidate is included."
       },
       {
         "id": "P3_EXCLUDE",
-        "rule": "Freeze exclusions, reasons, and their digest before first path execution and oracle reveal; publish every exclusion."
+        "rule": "Individual exclusions from a committed candidate pack are prohibited. A later-discovered pack defect invalidates the experiment and requires a newly committed pack."
       },
       {
         "id": "P4_DENOMINATOR",
@@ -956,7 +990,7 @@
       },
       {
         "id": "P9_FLOORS",
-        "rule": "No pass claim is permitted unless at least twelve cases, four eligible primary authors, and four independence clusters remain after exclusions."
+        "rule": "No candidate pack may be committed and no pass claim is permitted unless the complete committed population has at least twelve cases, four eligible primary authors, and four independence clusters."
       }
     ],
     "post_reveal_exclusions_allowed": false,

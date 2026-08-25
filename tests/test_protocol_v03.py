@@ -16,6 +16,9 @@ RECONCILIATION = (
 V036_DISPOSITION = (
     PROJECT_ROOT / "docs" / "reviews" / "v0.3.6-review-disposition-2026-08-24.json"
 )
+V037_DISPOSITION = (
+    PROJECT_ROOT / "docs" / "reviews" / "v0.3.7-review-disposition-2026-08-24.json"
+)
 CI_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
 LIVE_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "live-eval.yml"
 
@@ -65,7 +68,7 @@ def _markdown_table(path: Path, heading: str) -> list[dict[str, str]]:
 
 def test_v03_protocol_is_review_gated_and_bound_to_approved_v02() -> None:
     protocol = _protocol()
-    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.7"
+    assert protocol["schema_version"] == "agent-context-proof-protocol-v0.3.8"
     assert protocol["status"] == "PROTOCOL_DRAFT"
     assert protocol["implementation_gate"] == "AWAITING_INDEPENDENT_PROTOCOL_REVIEW"
     assert protocol["base_commit"] == "3741aae69b779af36882705e7a8fb61bf734474a"
@@ -108,6 +111,36 @@ def test_v036_request_changes_is_preserved_for_its_exact_object() -> None:
         ),
     }
     assert disposition["independent_review"]["outcome"] == "REQUEST_CHANGES"
+    assert disposition["owner_disposition"]["case_sealing"] == (
+        "HELD_PENDING_SUCCESSOR_REVIEW"
+    )
+    assert disposition["owner_disposition"]["successor_requires_new_exact_sha_review"]
+
+
+def test_v037_request_changes_is_preserved_for_its_exact_object() -> None:
+    disposition = json.loads(V037_DISPOSITION.read_text(encoding="utf-8"))
+    assert disposition["subject"] == {
+        "repository": "https://github.com/heronyogi/agent-context-proof",
+        "pull_request": "https://github.com/heronyogi/agent-context-proof/pull/6",
+        "commit": "4b34da1fe0caa85f55453a87fcdba6ab1d6d98a4",
+        "tree": "720309f783e9e910abfc6f420aa623b09d73c2e7",
+        "git_archive_tar_sha256": (
+            "7ff6fd986b8d6e35046df900bdabdd4addecb67146bfc663fbcb0ad58d527a82"
+        ),
+    }
+    assert disposition["independent_review"]["outcome"] == "REQUEST_CHANGES"
+    assert disposition["independent_review"]["blocking_classes"] == [
+        f"ACP-V03-{index:03d}_{suffix}"
+        for index, suffix in (
+            (7, "RESULT_AND_TRACE_CLOSURE"),
+            (8, "DEPENDENCY_REPRESENTATION"),
+            (9, "EXCLUSION_INTEGRITY"),
+            (10, "ADJUDICATION_STATE"),
+            (11, "RELATEDNESS_EVIDENCE"),
+            (12, "NUMERIC_DOMAIN"),
+        )
+    ]
+    assert disposition["owner_disposition"]["successor_version"] == "v0.3.8"
     assert disposition["owner_disposition"]["case_sealing"] == (
         "HELD_PENDING_SUCCESSOR_REVIEW"
     )
@@ -478,7 +511,7 @@ def test_scoring_population_exactly_mirrors_and_constrains_pass_rules() -> None:
     assert population["comparator_population"] == "same_included_case_ids"
     assert population["comparator_accuracy_gates_proof"] is False
     assert population["post_reveal_exclusions_allowed"] is False
-    assert population["minimum_after_exclusions"] == {
+    assert population["minimum_committed_population"] == {
         "cases": protocol["blind_case_minimum"],
         "distinct_primary_authors": 4,
         "independence_clusters": protocol["blind_family_minimum"],

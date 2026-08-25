@@ -111,7 +111,7 @@ def _provenance(dependency_type: str = "identity_introduction") -> dict[str, obj
 
 def _case(case_id: str, family_id: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-case-v0.3.7",
+        "schema_version": "agent-context-proof-case-v0.3.8",
         "case_id": case_id,
         "family_id": family_id,
         "split": "blind_validation",
@@ -140,7 +140,7 @@ def _oracle(case_id: str, dependency_type: str = "identity_introduction") -> dic
     }
     rationale = "The committed rules produce one deterministic result."
     return {
-        "schema_version": "agent-context-proof-oracle-v0.3.7",
+        "schema_version": "agent-context-proof-oracle-v0.3.8",
         "case_id": case_id,
         "case_coordinate": deepcopy(COORDINATE),
         "validation_time": NOW,
@@ -181,7 +181,7 @@ def _oracle(case_id: str, dependency_type: str = "identity_introduction") -> dic
 
 def _result(case_id: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-result-v0.3.7",
+        "schema_version": "agent-context-proof-result-v0.3.8",
         "case_id": case_id,
         "path_id": "governed",
         "repeat_index": 0,
@@ -196,7 +196,7 @@ def _result(case_id: str) -> dict[str, object]:
 
 def _authorship(family_id: str, author: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-authorship-v0.3.7",
+        "schema_version": "agent-context-proof-authorship-v0.3.8",
         "family_id": family_id,
         "primary_author_id": author,
         "coauthor_ids": [],
@@ -211,25 +211,28 @@ def _authorship(family_id: str, author: str) -> dict[str, object]:
 
 def _schema_versions() -> dict[str, str]:
     return {
-        "authorship_attestation": "agent-context-proof-authorship-v0.3.7",
-        "authorship_collection": "agent-context-proof-authorship-collection-v0.3.7",
-        "case_record": "agent-context-proof-case-v0.3.7",
-        "freeze_reveal_record": "agent-context-proof-freeze-reveal-v0.3.7",
-        "leakage_review_attestation": ("agent-context-proof-leakage-review-v0.3.7"),
-        "oracle_record": "agent-context-proof-oracle-v0.3.7",
-        "oracle_reveal_record": "agent-context-proof-oracle-reveal-v0.3.7",
-        "pack_manifest": "agent-context-proof-pack-manifest-v0.3.7",
-        "path_output_commitment": ("agent-context-proof-path-output-commitment-v0.3.7"),
-        "population_freeze_record": ("agent-context-proof-population-freeze-v0.3.7"),
-        "public_commitment": "agent-context-proof-public-commitment-v0.3.7",
-        "relatedness_graph": "agent-context-proof-relatedness-graph-v0.3.7",
-        "result_record": "agent-context-proof-result-v0.3.7",
+        "authorship_attestation": "agent-context-proof-authorship-v0.3.8",
+        "authorship_collection": "agent-context-proof-authorship-collection-v0.3.8",
+        "case_record": "agent-context-proof-case-v0.3.8",
+        "freeze_reveal_record": "agent-context-proof-freeze-reveal-v0.3.8",
+        "leakage_review_attestation": ("agent-context-proof-leakage-review-v0.3.8"),
+        "oracle_record": "agent-context-proof-oracle-v0.3.8",
+        "oracle_reveal_record": "agent-context-proof-oracle-reveal-v0.3.8",
+        "pack_manifest": "agent-context-proof-pack-manifest-v0.3.8",
+        "path_artifact_manifest": ("agent-context-proof-path-artifact-manifest-v0.3.8"),
+        "path_output_commitment": ("agent-context-proof-path-output-commitment-v0.3.8"),
+        "path_run_record": "agent-context-proof-path-run-v0.3.8",
+        "population_freeze_record": ("agent-context-proof-population-freeze-v0.3.8"),
+        "public_commitment": "agent-context-proof-public-commitment-v0.3.8",
+        "relatedness_graph": "agent-context-proof-relatedness-graph-v0.3.8",
+        "result_record": "agent-context-proof-result-v0.3.8",
+        "trace_record": "agent-context-proof-trace-v0.3.8",
     }
 
 
 def _public_commitment() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-public-commitment-v0.3.7",
+        "schema_version": "agent-context-proof-public-commitment-v0.3.8",
         "approved_protocol_commit": COMMIT,
         "schema_versions": _schema_versions(),
         "aggregate_case_count": 12,
@@ -245,9 +248,9 @@ def _public_commitment() -> dict[str, object]:
 def _pack(pack_type: str, digest: str) -> dict[str, object]:
     prefix = "cases" if pack_type == "sealed_input_pack" else "oracle"
     return {
-        "schema_version": "agent-context-proof-pack-manifest-v0.3.7",
+        "schema_version": "agent-context-proof-pack-manifest-v0.3.8",
         "pack_type": pack_type,
-        "archive_format": "USTAR_CANONICAL_V0.3.7",
+        "archive_format": "USTAR_CANONICAL_V0.3.8",
         "archive_sha256": digest,
         "case_count": 12,
         "family_count": 4,
@@ -257,7 +260,7 @@ def _pack(pack_type: str, digest: str) -> dict[str, object]:
 
 def _leakage() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-leakage-review-v0.3.7",
+        "schema_version": "agent-context-proof-leakage-review-v0.3.8",
         "input_pack_sha256": ONE,
         "randomized_input_pack_sha256": TWO,
         "reviewer_id": "reviewer:one",
@@ -283,7 +286,7 @@ def _leakage() -> dict[str, object]:
 
 def _freeze() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-freeze-reveal-v0.3.7",
+        "schema_version": "agent-context-proof-freeze-reveal-v0.3.8",
         "experiment_id": "experiment:v03",
         "population_freeze_sha256": ZERO,
         "output_commitment_sha256s": [ONE, TWO],
@@ -294,7 +297,7 @@ def _freeze() -> dict[str, object]:
 
 def _authorship_collection() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-authorship-collection-v0.3.7",
+        "schema_version": "agent-context-proof-authorship-collection-v0.3.8",
         "records": [
             _authorship(f"family:{index}", f"author:{index}") for index in range(4)
         ],
@@ -304,7 +307,7 @@ def _authorship_collection() -> dict[str, object]:
 def _relatedness_graph() -> dict[str, object]:
     family_ids = [f"family:{index}" for index in range(4)]
     return {
-        "schema_version": "agent-context-proof-relatedness-graph-v0.3.7",
+        "schema_version": "agent-context-proof-relatedness-graph-v0.3.8",
         "family_ids": family_ids,
         "edges": [],
         "clusters": [
@@ -318,10 +321,12 @@ def _population_freeze() -> dict[str, object]:
     case_ids = [f"case:{index:02d}" for index in range(12)]
     population_sha256 = (
         "sha256:"
-        + hashlib.sha256(rfc8785.dumps({"included_case_ids": case_ids})).hexdigest()
+        + hashlib.sha256(
+            rfc8785.dumps({"included_case_ids": case_ids, "repeat_count": 1})
+        ).hexdigest()
     )
     return {
-        "schema_version": "agent-context-proof-population-freeze-v0.3.7",
+        "schema_version": "agent-context-proof-population-freeze-v0.3.8",
         "experiment_id": "experiment:v03",
         "approved_protocol_commit": COMMIT,
         "public_commitment_sha256": ZERO,
@@ -338,14 +343,17 @@ def _population_freeze() -> dict[str, object]:
                 "path_id": "governed",
                 "model_id": "none",
                 "settings_sha256": ONE,
+                "observer_rules_sha256": ONE,
             },
             {
                 "path_id": "retrieval_plus_rules",
                 "model_id": "none",
                 "settings_sha256": TWO,
+                "observer_rules_sha256": THREE,
             },
         ],
         "case_exclusions": [],
+        "repeat_count": 1,
         "included_case_ids": case_ids,
         "population_sha256": population_sha256,
         "frozen_at": NOW,
@@ -355,12 +363,14 @@ def _population_freeze() -> dict[str, object]:
 
 def _path_output_commitment(path_id: str) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-path-output-commitment-v0.3.7",
+        "schema_version": "agent-context-proof-path-output-commitment-v0.3.8",
         "experiment_id": "experiment:v03",
         "population_freeze_sha256": ZERO,
         "path_id": path_id,
         "outputs_sha256": ONE,
+        "outputs_manifest_sha256": THREE,
         "traces_sha256": TWO,
+        "traces_manifest_sha256": ZERO,
         "included_case_count": 12,
         "repeat_count": 1,
         "committed_at": "2030-01-02T12:00:00Z",
@@ -369,7 +379,7 @@ def _path_output_commitment(path_id: str) -> dict[str, object]:
 
 def _oracle_reveal() -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-oracle-reveal-v0.3.7",
+        "schema_version": "agent-context-proof-oracle-reveal-v0.3.8",
         "experiment_id": "experiment:v03",
         "population_freeze_sha256": ZERO,
         "output_commitment_sha256s": [ONE, TWO],
@@ -405,9 +415,9 @@ def _archive_manifest(
     pack_type: str, archive: bytes, files: dict[str, bytes]
 ) -> dict[str, object]:
     return {
-        "schema_version": "agent-context-proof-pack-manifest-v0.3.7",
+        "schema_version": "agent-context-proof-pack-manifest-v0.3.8",
         "pack_type": pack_type,
-        "archive_format": "USTAR_CANONICAL_V0.3.7",
+        "archive_format": "USTAR_CANONICAL_V0.3.8",
         "archive_sha256": _digest(archive),
         "case_count": 12,
         "family_count": 4,
@@ -415,6 +425,69 @@ def _archive_manifest(
             {"path": path, "sha256": _digest(data), "size_bytes": len(data)}
             for path, data in sorted(files.items())
         ],
+    }
+
+
+def _path_artifact_manifest(
+    artifact_type: str,
+    path_id: str,
+    population_digest: str,
+    archive: bytes,
+    files: dict[str, bytes],
+) -> dict[str, object]:
+    return {
+        "schema_version": "agent-context-proof-path-artifact-manifest-v0.3.8",
+        "artifact_type": artifact_type,
+        "path_id": path_id,
+        "population_freeze_sha256": population_digest,
+        "archive_format": "USTAR_CANONICAL_V0.3.8",
+        "archive_sha256": _digest(archive),
+        "case_count": 12,
+        "repeat_count": 1,
+        "entries": [
+            {"path": file_name, "sha256": _digest(data), "size_bytes": len(data)}
+            for file_name, data in sorted(files.items())
+        ],
+    }
+
+
+def _trace_record(case_id: str, path_id: str, observer_rules: str) -> dict[str, object]:
+    return {
+        "schema_version": "agent-context-proof-trace-v0.3.8",
+        "case_id": case_id,
+        "path_id": path_id,
+        "repeat_index": 0,
+        "observer_rules_sha256": observer_rules,
+        "events": [
+            {
+                "sequence": 0,
+                "event_type": "resolver:completed",
+                "subject": case_id,
+                "payload_sha256": ZERO,
+                "observed_at": "2030-01-02T01:00:00Z",
+            }
+        ],
+    }
+
+
+def _path_run_record(
+    case_id: str,
+    path_id: str,
+    trace_digest: str,
+    provenance: dict[str, object],
+) -> dict[str, object]:
+    result = _result(case_id)
+    result["path_id"] = path_id
+    result["trace_sha256"] = trace_digest
+    result["provenance"] = deepcopy(provenance)
+    return {
+        "schema_version": "agent-context-proof-path-run-v0.3.8",
+        "case_id": case_id,
+        "path_id": path_id,
+        "repeat_index": 0,
+        "run_status": "COMPLETE",
+        "trace_sha256": trace_digest,
+        "result": result,
     }
 
 
@@ -607,9 +680,67 @@ def _build_complete_pack(tmp_path: Path) -> dict[str, object]:
     population_path = _write(tmp_path / "population.json", population)
     population_digest = _digest(population_path.read_bytes())
     commitment_paths: list[Path] = []
+    result_archive_paths: list[Path] = []
+    result_manifest_paths: list[Path] = []
+    trace_archive_paths: list[Path] = []
+    trace_manifest_paths: list[Path] = []
+    result_files_by_path: dict[str, dict[str, bytes]] = {}
+    trace_files_by_path: dict[str, dict[str, bytes]] = {}
     for path_id in ("governed", "retrieval_plus_rules"):
+        observer_rules = ONE if path_id == "governed" else THREE
+        trace_files: dict[str, bytes] = {}
+        result_files: dict[str, bytes] = {}
+        for case_id in case_ids:
+            trace = _trace_record(case_id, path_id, observer_rules)
+            trace_bytes = _json_bytes(trace)
+            trace_files[f"traces/{path_id}/{case_id}/0.json"] = trace_bytes
+            run = _path_run_record(
+                case_id,
+                path_id,
+                _digest(trace_bytes),
+                provenance,
+            )
+            result_files[f"results/{path_id}/{case_id}/0.json"] = _json_bytes(run)
+        result_files_by_path[path_id] = result_files
+        trace_files_by_path[path_id] = trace_files
+        result_archive = _canonical_tar(result_files)
+        trace_archive = _canonical_tar(trace_files)
+        result_archive_path = tmp_path / f"results-{path_id}.tar"
+        trace_archive_path = tmp_path / f"traces-{path_id}.tar"
+        result_archive_path.write_bytes(result_archive)
+        trace_archive_path.write_bytes(trace_archive)
+        result_manifest_path = _write(
+            tmp_path / f"results-{path_id}-manifest.json",
+            _path_artifact_manifest(
+                "result_records",
+                path_id,
+                population_digest,
+                result_archive,
+                result_files,
+            ),
+        )
+        trace_manifest_path = _write(
+            tmp_path / f"traces-{path_id}-manifest.json",
+            _path_artifact_manifest(
+                "trace_records",
+                path_id,
+                population_digest,
+                trace_archive,
+                trace_files,
+            ),
+        )
+        result_archive_paths.append(result_archive_path)
+        result_manifest_paths.append(result_manifest_path)
+        trace_archive_paths.append(trace_archive_path)
+        trace_manifest_paths.append(trace_manifest_path)
         commitment = _path_output_commitment(path_id)
         commitment["population_freeze_sha256"] = population_digest
+        commitment["outputs_sha256"] = _digest(result_archive)
+        commitment["outputs_manifest_sha256"] = _digest(
+            result_manifest_path.read_bytes()
+        )
+        commitment["traces_sha256"] = _digest(trace_archive)
+        commitment["traces_manifest_sha256"] = _digest(trace_manifest_path.read_bytes())
         commitment_paths.append(
             _write(tmp_path / f"commitment-{path_id}.json", commitment)
         )
@@ -631,10 +762,16 @@ def _build_complete_pack(tmp_path: Path) -> dict[str, object]:
         "oracle_manifest_path": oracle_manifest_path,
         "population_freeze_path": population_path,
         "output_commitment_paths": commitment_paths,
+        "result_archive_paths": result_archive_paths,
+        "result_manifest_paths": result_manifest_paths,
+        "trace_archive_paths": trace_archive_paths,
+        "trace_manifest_paths": trace_manifest_paths,
         "oracle_reveal_path": reveal_path,
         "freeze_reveal_path": final_path,
         "input_files": input_files,
         "oracle_files": oracle_files,
+        "result_files_by_path": result_files_by_path,
+        "trace_files_by_path": trace_files_by_path,
     }
 
 
@@ -682,12 +819,32 @@ def _rebind_complete_pack(pack: dict[str, object]) -> None:
     )
     _write(pack["population_freeze_path"], population)
     population_digest = _digest(pack["population_freeze_path"].read_bytes())
-    for path in pack["output_commitment_paths"]:
-        commitment = json.loads(path.read_text())
+    result_manifests: dict[str, tuple[Path, dict[str, object]]] = {}
+    trace_manifests: dict[str, tuple[Path, dict[str, object]]] = {}
+    for manifest_path in pack["result_manifest_paths"]:
+        manifest = json.loads(manifest_path.read_text())
+        manifest["population_freeze_sha256"] = population_digest
+        _write(manifest_path, manifest)
+        result_manifests[manifest["path_id"]] = (manifest_path, manifest)
+    for manifest_path in pack["trace_manifest_paths"]:
+        manifest = json.loads(manifest_path.read_text())
+        manifest["population_freeze_sha256"] = population_digest
+        _write(manifest_path, manifest)
+        trace_manifests[manifest["path_id"]] = (manifest_path, manifest)
+    for commitment_path in pack["output_commitment_paths"]:
+        commitment = json.loads(commitment_path.read_text())
         commitment["population_freeze_sha256"] = population_digest
-        _write(path, commitment)
+        path_id = commitment["path_id"]
+        commitment["outputs_manifest_sha256"] = _digest(
+            result_manifests[path_id][0].read_bytes()
+        )
+        commitment["traces_manifest_sha256"] = _digest(
+            trace_manifests[path_id][0].read_bytes()
+        )
+        _write(commitment_path, commitment)
     commitment_digests = sorted(
-        _digest(path.read_bytes()) for path in pack["output_commitment_paths"]
+        _digest(commitment_path.read_bytes())
+        for commitment_path in pack["output_commitment_paths"]
     )
     reveal = json.loads(pack["oracle_reveal_path"].read_text())
     reveal["population_freeze_sha256"] = population_digest
@@ -698,6 +855,99 @@ def _rebind_complete_pack(pack: dict[str, object]) -> None:
     final["output_commitment_sha256s"] = commitment_digests
     final["oracle_reveal_sha256"] = _digest(pack["oracle_reveal_path"].read_bytes())
     _write(pack["freeze_reveal_path"], final)
+
+
+def _rebind_path_artifacts(pack: dict[str, object], path_id: str) -> None:
+    population_digest = _digest(pack["population_freeze_path"].read_bytes())
+    result_files = pack["result_files_by_path"][path_id]
+    trace_files = pack["trace_files_by_path"][path_id]
+    result_archive = _canonical_tar(result_files)
+    trace_archive = _canonical_tar(trace_files)
+    result_archive_path = next(
+        item
+        for item in pack["result_archive_paths"]
+        if item.name == f"results-{path_id}.tar"
+    )
+    trace_archive_path = next(
+        item
+        for item in pack["trace_archive_paths"]
+        if item.name == f"traces-{path_id}.tar"
+    )
+    result_manifest_path = next(
+        item
+        for item in pack["result_manifest_paths"]
+        if item.name == f"results-{path_id}-manifest.json"
+    )
+    trace_manifest_path = next(
+        item
+        for item in pack["trace_manifest_paths"]
+        if item.name == f"traces-{path_id}-manifest.json"
+    )
+    result_archive_path.write_bytes(result_archive)
+    trace_archive_path.write_bytes(trace_archive)
+    _write(
+        result_manifest_path,
+        _path_artifact_manifest(
+            "result_records",
+            path_id,
+            population_digest,
+            result_archive,
+            result_files,
+        ),
+    )
+    _write(
+        trace_manifest_path,
+        _path_artifact_manifest(
+            "trace_records",
+            path_id,
+            population_digest,
+            trace_archive,
+            trace_files,
+        ),
+    )
+    commitment_path = next(
+        item
+        for item in pack["output_commitment_paths"]
+        if json.loads(item.read_text())["path_id"] == path_id
+    )
+    commitment = json.loads(commitment_path.read_text())
+    commitment.update(
+        {
+            "outputs_sha256": _digest(result_archive),
+            "outputs_manifest_sha256": _digest(result_manifest_path.read_bytes()),
+            "traces_sha256": _digest(trace_archive),
+            "traces_manifest_sha256": _digest(trace_manifest_path.read_bytes()),
+        }
+    )
+    _write(commitment_path, commitment)
+    _rebind_reveal_receipt(pack)
+
+
+def _rebind_reveal_receipt(pack: dict[str, object]) -> None:
+    commitment_digests = sorted(
+        _digest(item.read_bytes()) for item in pack["output_commitment_paths"]
+    )
+    reveal = json.loads(pack["oracle_reveal_path"].read_text())
+    reveal["output_commitment_sha256s"] = commitment_digests
+    _write(pack["oracle_reveal_path"], reveal)
+    final = json.loads(pack["freeze_reveal_path"].read_text())
+    final["output_commitment_sha256s"] = commitment_digests
+    final["oracle_reveal_sha256"] = _digest(pack["oracle_reveal_path"].read_bytes())
+    _write(pack["freeze_reveal_path"], final)
+
+
+def _complete_pack_kwargs(pack: dict[str, object]) -> dict[str, object]:
+    return {
+        key: value
+        for key, value in pack.items()
+        if key
+        not in {
+            "input_files",
+            "oracle_files",
+            "result_files_by_path",
+            "trace_files_by_path",
+        }
+    }
 
 
 def test_artifact_schemas_mirror_protocol_vocabularies_and_file_map() -> None:
@@ -761,6 +1011,16 @@ def test_artifact_schemas_mirror_protocol_vocabularies_and_file_map() -> None:
         ("leakage_review_attestation", _leakage()),
         ("public_commitment", _public_commitment()),
         ("pack_manifest", _pack("sealed_input_pack", ONE)),
+        (
+            "path_artifact_manifest",
+            _path_artifact_manifest(
+                "result_records", "governed", ZERO, b"archive", {"one": b"1"}
+            ),
+        ),
+        (
+            "path_run_record",
+            _path_run_record("case:one", "governed", ZERO, _provenance()),
+        ),
         ("population_freeze_record", _population_freeze()),
         (
             "path_output_commitment",
@@ -768,6 +1028,7 @@ def test_artifact_schemas_mirror_protocol_vocabularies_and_file_map() -> None:
         ),
         ("oracle_reveal_record", _oracle_reveal()),
         ("freeze_reveal_record", _freeze()),
+        ("trace_record", _trace_record("case:one", "governed", ONE)),
     ],
 )
 def test_each_case_sealing_artifact_has_a_strict_valid_shape(
@@ -1053,6 +1314,7 @@ def test_authorship_and_phase_records_reject_review_counterexamples(
 ) -> None:
     validator = _validator_module()
     collection = _authorship_collection()
+    collection["records"].append(_authorship("family:4", "author:4"))
     for record in collection["records"]:
         record["primary_author_id"] = "author:one"
     with pytest.raises(validator.StructuralValidationError, match="primary_author_id"):
@@ -1061,6 +1323,23 @@ def test_authorship_and_phase_records_reject_review_counterexamples(
                 (
                     "authorship_collection",
                     _write(tmp_path / "same-author.json", collection),
+                )
+            ]
+        )
+
+    duplicated_source = _authorship("family:duplicate-source", "author:source")
+    source = {
+        "path": "shared/source.json",
+        "sha256": ONE,
+        "outcome_determining": True,
+    }
+    duplicated_source["shared_sources"] = [deepcopy(source), deepcopy(source)]
+    with pytest.raises(validator.StructuralValidationError, match="shared source path"):
+        validator.validate_artifacts(
+            [
+                (
+                    "authorship_attestation",
+                    _write(tmp_path / "duplicate-source.json", duplicated_source),
                 )
             ]
         )
@@ -1075,7 +1354,13 @@ def test_complete_pack_mode_closes_archives_population_and_phases(
         **{
             key: value
             for key, value in pack.items()
-            if key not in {"input_files", "oracle_files"}
+            if key
+            not in {
+                "input_files",
+                "oracle_files",
+                "result_files_by_path",
+                "trace_files_by_path",
+            }
         }
     )
 
@@ -1108,7 +1393,13 @@ def test_complete_pack_rejects_unlinked_leakage_and_reveal_before_outputs(
             **{
                 key: value
                 for key, value in leakage_pack.items()
-                if key not in {"input_files", "oracle_files"}
+                if key
+                not in {
+                    "input_files",
+                    "oracle_files",
+                    "result_files_by_path",
+                    "trace_files_by_path",
+                }
             }
         )
 
@@ -1129,7 +1420,13 @@ def test_complete_pack_rejects_unlinked_leakage_and_reveal_before_outputs(
             **{
                 key: value
                 for key, value in phase_pack.items()
-                if key not in {"input_files", "oracle_files"}
+                if key
+                not in {
+                    "input_files",
+                    "oracle_files",
+                    "result_files_by_path",
+                    "trace_files_by_path",
+                }
             }
         )
 
@@ -1150,7 +1447,13 @@ def test_complete_pack_rejects_fake_manifest_and_duplicate_path_ids(
             **{
                 key: value
                 for key, value in manifest_pack.items()
-                if key not in {"input_files", "oracle_files"}
+                if key
+                not in {
+                    "input_files",
+                    "oracle_files",
+                    "result_files_by_path",
+                    "trace_files_by_path",
+                }
             }
         )
 
@@ -1176,9 +1479,242 @@ def test_complete_pack_rejects_fake_manifest_and_duplicate_path_ids(
             **{
                 key: value
                 for key, value in path_pack.items()
-                if key not in {"input_files", "oracle_files"}
+                if key
+                not in {
+                    "input_files",
+                    "oracle_files",
+                    "result_files_by_path",
+                    "trace_files_by_path",
+                }
             }
         )
+
+
+def test_complete_pack_closes_result_trace_and_repeat_commitments(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+
+    missing = _build_complete_pack(tmp_path / "missing")
+    missing["result_files_by_path"]["governed"].pop("results/governed/case:00/0.json")
+    _rebind_path_artifacts(missing, "governed")
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="exact case-repeat matrix",
+    ):
+        validator.validate_complete_pack(**_complete_pack_kwargs(missing))
+
+    unbound = _build_complete_pack(tmp_path / "unbound")
+    commitment_path = unbound["output_commitment_paths"][0]
+    commitment = json.loads(commitment_path.read_text())
+    commitment["outputs_sha256"] = ZERO
+    _write(commitment_path, commitment)
+    _rebind_reveal_receipt(unbound)
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="does not bind exact artifacts",
+    ):
+        validator.validate_complete_pack(**_complete_pack_kwargs(unbound))
+
+    repeats = _build_complete_pack(tmp_path / "repeats")
+    commitment_path = repeats["output_commitment_paths"][0]
+    commitment = json.loads(commitment_path.read_text())
+    commitment["repeat_count"] = 2
+    _write(commitment_path, commitment)
+    _rebind_reveal_receipt(repeats)
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="output commitment does not match frozen run",
+    ):
+        validator.validate_complete_pack(**_complete_pack_kwargs(repeats))
+
+
+def test_missing_run_is_visible_in_the_exact_result_matrix(tmp_path: Path) -> None:
+    validator = _validator_module()
+    pack = _build_complete_pack(tmp_path)
+    result_path = "results/governed/case:00/0.json"
+    existing = json.loads(pack["result_files_by_path"]["governed"][result_path])
+    pack["result_files_by_path"]["governed"][result_path] = _json_bytes(
+        {
+            "schema_version": "agent-context-proof-path-run-v0.3.8",
+            "case_id": "case:00",
+            "path_id": "governed",
+            "repeat_index": 0,
+            "run_status": "MISSING",
+            "trace_sha256": existing["trace_sha256"],
+            "failure_code": "MISSING_OUTPUT",
+            "failure_detail_sha256": ZERO,
+        }
+    )
+    _rebind_path_artifacts(pack, "governed")
+    validator.validate_complete_pack(**_complete_pack_kwargs(pack))
+
+
+def test_claim_spine_rejects_non_introduction_side_dependencies(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    pack = _build_complete_pack(tmp_path)
+    oracle_path = "oracles/case:00.json"
+    oracle = json.loads(pack["oracle_files"][oracle_path])
+    for payload in [
+        oracle["oracle"],
+        *(item["annotation"] for item in oracle["annotations"]),
+        oracle["adjudication"]["oracle"],
+    ]:
+        evaluation = payload["provenance"]["authority_evaluation_records"]
+        precedence = next(
+            item
+            for item in evaluation
+            if item["record_id"].startswith("entry:precedence")
+        )
+        precedence["classification"] = "VALID"
+        precedence["decisive"] = True
+        chain = payload["provenance"]["authority_chains"][0]
+        chain["records"].insert(
+            -1,
+            {
+                "record_id": precedence["record_id"],
+                "payload_sha256": precedence["payload_sha256"],
+            },
+        )
+        core = {
+            "issuer_id": chain["issuer_id"],
+            "claim_entry_id": chain["claim_entry_id"],
+            "records": chain["records"],
+        }
+        chain["chain_sha256"] = _digest(rfc8785.dumps(core))
+    pack["oracle_files"][oracle_path] = _json_bytes(oracle)
+    _rebind_complete_pack(pack)
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="non-introduction side dependency",
+    ):
+        validator.validate_complete_pack(**_complete_pack_kwargs(pack))
+
+
+def test_population_freeze_cannot_exclude_a_committed_candidate(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    pack = _build_complete_pack(tmp_path)
+    population = json.loads(pack["population_freeze_path"].read_text())
+    population["case_exclusions"] = [
+        {
+            "case_id": "case:00",
+            "reason_code": "SCHEMA_INVALID",
+            "recorded_at": population["frozen_at"],
+        }
+    ]
+    _write(pack["population_freeze_path"], population)
+    with pytest.raises(validator.StructuralValidationError, match="case_exclusions"):
+        validator.validate_complete_pack(**_complete_pack_kwargs(pack))
+
+
+def test_rule_application_requires_actual_annotation_disagreement(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    oracle = _oracle("case:agreement")
+    oracle["adjudication"]["resolution"] = "RULE_APPLICATION"
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="EXACT_AGREEMENT is required exactly",
+    ):
+        validator.validate_artifacts(
+            [("oracle_record", _write(tmp_path / "false-dispute.json", oracle))]
+        )
+
+
+def test_relatedness_edges_are_unique_exact_and_evidence_bound(
+    tmp_path: Path,
+) -> None:
+    validator = _validator_module()
+    collection = _authorship_collection()
+    shared = {"path": "shared/rules.json", "sha256": ONE, "outcome_determining": True}
+    collection["records"][0]["shared_sources"] = [deepcopy(shared)]
+    collection["records"][1]["shared_sources"] = [deepcopy(shared)]
+    evidence = {
+        "coordination_evidence_sha256s": [],
+        "family_ids": ["family:0", "family:1"],
+        "outcome_determining_source_sha256s": [ONE],
+        "shared_author_ids": [],
+    }
+    edge = {
+        "family_ids": ["family:0", "family:1"],
+        "relation_types": ["OUTCOME_DETERMINING_SOURCE"],
+        "evidence_sha256": _digest(rfc8785.dumps(evidence)),
+    }
+    graph = _relatedness_graph()
+    collection["records"].append(_authorship("family:4", "author:4"))
+    graph["family_ids"].append("family:4")
+    graph["edges"] = [edge]
+    graph["clusters"] = [
+        {"cluster_id": "family:0", "family_ids": ["family:0", "family:1"]},
+        {"cluster_id": "family:2", "family_ids": ["family:2"]},
+        {"cluster_id": "family:3", "family_ids": ["family:3"]},
+        {"cluster_id": "family:4", "family_ids": ["family:4"]},
+    ]
+    collection_path = _write(tmp_path / "collection.json", collection)
+    graph_path = _write(tmp_path / "graph.json", graph)
+    validator.validate_artifacts(
+        [("authorship_collection", collection_path), ("relatedness_graph", graph_path)]
+    )
+
+    duplicate = deepcopy(graph)
+    duplicate["edges"].append(deepcopy(edge))
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="duplicate relatedness family pair",
+    ):
+        validator.validate_artifacts(
+            [
+                ("authorship_collection", collection_path),
+                ("relatedness_graph", _write(tmp_path / "duplicate.json", duplicate)),
+            ]
+        )
+
+    unbound = deepcopy(graph)
+    unbound["edges"][0]["evidence_sha256"] = TWO
+    with pytest.raises(
+        validator.StructuralValidationError,
+        match="canonical disclosed facts",
+    ):
+        validator.validate_artifacts(
+            [
+                ("authorship_collection", collection_path),
+                ("relatedness_graph", _write(tmp_path / "unbound.json", unbound)),
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "number",
+    [
+        "9007199254740992",
+        "9007199254740992.0",
+        "9.007199254740992e15",
+        "1e100",
+        "0.5",
+    ],
+)
+def test_numeric_domain_is_independent_of_unsafe_lexical_form(number: str) -> None:
+    validator = _validator_module()
+    with pytest.raises(validator.StructuralValidationError, match="unsafe number"):
+        validator.parse_strict_json_bytes(f'{{"value":{number}}}'.encode(), number)
+
+
+def test_numeric_domain_normalizes_equivalent_safe_forms() -> None:
+    validator = _validator_module()
+    values = [
+        validator.parse_strict_json_bytes(item, "safe")["value"]
+        for item in (b'{"value":100}', b'{"value":100.0}', b'{"value":1e2}')
+    ]
+    assert values == [100, 100, 100]
+
+
+def test_population_freeze_rejects_duplicate_model_path(tmp_path: Path) -> None:
+    validator = _validator_module()
 
     population = _population_freeze()
     population["models"].append(deepcopy(population["models"][0]))
