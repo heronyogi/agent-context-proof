@@ -14,6 +14,7 @@ from contextproof.evaluator import (
     ContractTrustState,
     Decision,
     IdentityStatus,
+    digest,
     evaluate_context,
     load_identity,
     observe_execution_context,
@@ -242,7 +243,14 @@ def test_v02_proof_result_is_bound_to_current_cases_and_trust_root(
         report = evaluate_context(root, contract_root=root / "context")
         assert recorded["oracle_decision"] == report.decision.value
         assert recorded["oracle_trust_state"] == report.contract_trust.state.value
-        assert recorded["oracle_report_digest"] == report.report_digest
+        # The retained v0.2.0 model run predates the v0.2.1 byte-bound report.
+        # Verify its exact historical representation without rewriting a result
+        # or claiming those model calls were repeated on this candidate.
+        historical = report.to_dict(include_digests=False)
+        historical["context_version"] = "agent-context-proof-v0.2.0"
+        historical["contract_trust"].pop("verified_contract_digests")
+        assert recorded["oracle_report_digest"] == digest(historical)
+        assert recorded["oracle_report_digest"] != report.report_digest
 
 
 def test_cli_discovers_checkout_from_nested_directory() -> None:
