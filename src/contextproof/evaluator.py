@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import tomllib
 from collections.abc import Mapping
@@ -14,7 +15,7 @@ from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-CONTEXT_VERSION = "agent-context-proof-v0.2.0"
+CONTEXT_VERSION = "agent-context-proof-v0.2.1"
 TRUST_ROOT_SCHEMA = "agent-context-trust-root-v0.2.0"
 CONTRACT_PATHS = ("identity.json", "ontology.json", "ownership.json", "policy.json")
 REQUIRED_ENTITY_KINDS = frozenset(
@@ -146,6 +147,7 @@ class ContractTrustReport:
     authorized_owner_ids: tuple[str, ...]
     verified_contract_paths: tuple[str, ...]
     issues: tuple[str, ...]
+    verified_contract_digests: tuple[tuple[str, str], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -159,6 +161,7 @@ class ContractTrustReport:
             "minimum_policy_epoch": self.minimum_policy_epoch,
             "authorized_owner_ids": list(self.authorized_owner_ids),
             "verified_contract_paths": list(self.verified_contract_paths),
+            "verified_contract_digests": dict(self.verified_contract_digests),
             "issues": list(self.issues),
         }
 
@@ -257,15 +260,68 @@ def digest(value: Any) -> str:
     return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
 
 
+MAX_SOURCE_BYTES = 2 * 1024 * 1024
+
+
+def _read_source_bytes(path: Path) -> bytes:
+    """Read one bounded regular-file snapshot; consumers hash and parse it."""
+
+    flags = os.O_RDONLY
+    for name in ("O_CLOEXEC", "O_NOFOLLOW", "O_NONBLOCK"):
+        value = getattr(os, name, None)
+        if value is None:
+            raise ValueError("platform lacks required source-read controls")
+        flags |= value
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_SOURCE_BYTES:
+            raise ValueError("source is not a bounded regular file")
+        chunks = []
+        size = 0
+        while size <= MAX_SOURCE_BYTES:
+            chunk = os.read(descriptor, min(65536, MAX_SOURCE_BYTES + 1 - size))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+        after = os.fstat(descriptor)
+
+        def coordinates(item: os.stat_result) -> tuple[int, ...]:
+            return (
+                item.st_dev,
+                item.st_ino,
+                item.st_size,
+                item.st_mtime_ns,
+                item.st_ctime_ns,
+            )
+
+        if size > MAX_SOURCE_BYTES or size != before.st_size:
+            raise ValueError("source exceeds its exact bounded size")
+        if coordinates(before) != coordinates(after):
+            raise ValueError("source changed while being read")
+        return b"".join(chunks)
+    finally:
+        os.close(descriptor)
+
+
+def _source_digest(raw: bytes) -> str:
+    return f"sha256:{hashlib.sha256(raw).hexdigest()}"
+
+
 def _file_digest(path: Path) -> str:
-    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+    return _source_digest(_read_source_bytes(path))
+
+
+def _parse_json(raw: bytes) -> dict[str, Any]:
+    value = json.loads(raw.decode("utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("expected a JSON object")
+    return value
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError(f"expected a JSON object: {path}")
-    return value
+    return _parse_json(_read_source_bytes(path))
 
 
 def _safe_relative_path(value: str) -> PurePosixPath:
@@ -343,9 +399,7 @@ def trusted_reference_matches(reference: str, trust_root: Mapping[str, Any]) -> 
     target = trust_root.get("target")
     if not isinstance(target, Mapping):
         return False
-    allowed = {
-        str(item).casefold().strip() for item in target.get("references", [])
-    }
+    allowed = {str(item).casefold().strip() for item in target.get("references", [])}
     allowed.add(str(target.get("canonical_id", "")).casefold().strip())
     return reference.casefold().strip() in allowed
 
@@ -387,9 +441,11 @@ def _verify_contracts(
             _unresolved_identity(),
             _unresolved_identity(),
         )
-    trust_digest = _file_digest(trust_path)
+    trust_digest = None
     try:
-        root = _load_json(trust_path)
+        trust_bytes = _read_source_bytes(trust_path)
+        trust_digest = _source_digest(trust_bytes)
+        root = _parse_json(trust_bytes)
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         return (
             ContractTrustReport(
@@ -467,27 +523,32 @@ def _verify_contracts(
         invalid.append(f"contract manifest omits: {', '.join(undeclared)}")
 
     verified: list[str] = []
+    verified_digests: list[tuple[str, str]] = []
+    documents: dict[str, dict[str, Any]] = {}
     for relative in CONTRACT_PATHS:
         if relative not in expected_digests:
             continue
-        path = contracts / relative
-        if not path.is_file():
-            missing.append(f"declared contract is missing: {relative}")
-        elif _file_digest(path) != expected_digests[relative]:
-            invalid.append(f"contract digest mismatch: {relative}")
-        else:
+        try:
+            raw = _read_source_bytes(contracts / relative)
+            observed_digest = _source_digest(raw)
+            if observed_digest != expected_digests[relative]:
+                invalid.append(f"contract digest mismatch: {relative}")
+                continue
             verified.append(relative)
+            verified_digests.append((relative, observed_digest))
+            documents[relative] = _parse_json(raw)
+        except FileNotFoundError:
+            missing.append(f"declared contract is missing: {relative}")
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+            invalid.append(
+                "authorized contract cannot be parsed: "
+                f"{relative} ({type(exc).__name__})"
+            )
 
-    documents: dict[str, dict[str, Any]] = {}
-    if not invalid and not missing:
-        for relative in CONTRACT_PATHS:
-            try:
-                documents[relative] = _load_json(contracts / relative)
-            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
-                invalid.append(
-                    "authorized contract cannot be parsed: "
-                    f"{relative} ({type(exc).__name__})"
-                )
+    if invalid or missing:
+        # Partial byte matches do not establish the contract composition. Keep
+        # their digest evidence, but do not use partial documents as semantics.
+        documents.clear()
 
     identity = _unresolved_identity()
     owner_identity = _unresolved_identity()
@@ -639,6 +700,7 @@ def _verify_contracts(
             minimum_policy_epoch=minimum_epoch,
             authorized_owner_ids=authorized_owners,
             verified_contract_paths=tuple(verified),
+            verified_contract_digests=tuple(verified_digests),
             issues=tuple(issues),
         ),
         documents,
@@ -669,13 +731,14 @@ def _evaluate_requirement(root: Path, rule: Mapping[str, Any]) -> EvidenceRecord
             observed = "not a file"
             finding = "governed evidence path is not a file"
         else:
-            source_digests = (_file_digest(path),)
+            raw = _read_source_bytes(path)
+            source_digests = (_source_digest(raw),)
             if check == "path_exists":
                 observed = "present"
                 state = RequirementState.SATISFIED
                 finding = "required artifact exists"
             elif check == "toml_field_equals":
-                document = tomllib.loads(path.read_text(encoding="utf-8"))
+                document = tomllib.loads(raw.decode("utf-8"))
                 observed = str(_select(document, str(rule["selector"])))
                 state = (
                     RequirementState.SATISFIED
@@ -688,7 +751,7 @@ def _evaluate_requirement(root: Path, rule: Mapping[str, Any]) -> EvidenceRecord
                     else "package identity conflicts with the governed release"
                 )
             elif check == "json_fields_equal":
-                document = _load_json(path)
+                document = _parse_json(raw)
                 expected_fields = dict(rule["expected_fields"])
                 observed_fields: dict[str, str] = {}
                 mismatches: list[str] = []
@@ -713,7 +776,7 @@ def _evaluate_requirement(root: Path, rule: Mapping[str, Any]) -> EvidenceRecord
                     else "structured evidence conflicts with the governed coordinates"
                 )
             elif check == "json_array_contains":
-                document = _load_json(path)
+                document = _parse_json(raw)
                 values = _select(document, str(rule["selector"]))
                 if not isinstance(values, list):
                     raise ValueError("selected JSON coordinate is not an array")
@@ -724,9 +787,7 @@ def _evaluate_requirement(root: Path, rule: Mapping[str, Any]) -> EvidenceRecord
                 )
                 observed = "present" if matched else "absent"
                 state = (
-                    RequirementState.SATISFIED
-                    if matched
-                    else RequirementState.BLOCKED
+                    RequirementState.SATISFIED if matched else RequirementState.BLOCKED
                 )
                 finding = (
                     "release manifest registers the governed artifact"
@@ -734,7 +795,7 @@ def _evaluate_requirement(root: Path, rule: Mapping[str, Any]) -> EvidenceRecord
                     else "release manifest omits the governed artifact"
                 )
             elif check == "text_contains_all":
-                text = path.read_text(encoding="utf-8")
+                text = raw.decode("utf-8")
                 expected_values = tuple(str(item) for item in rule["expected_values"])
                 missing = tuple(item for item in expected_values if item not in text)
                 expected = list(expected_values)
@@ -803,9 +864,7 @@ def evaluate_context(
     if trust.state != ContractTrustState.VERIFIED:
         ownership = documents.get("ownership.json", {})
         graph = {
-            "ontology_id": documents.get("ontology.json", {}).get(
-                "id", "<untrusted>"
-            ),
+            "ontology_id": documents.get("ontology.json", {}).get("id", "<untrusted>"),
             "nodes": [],
             "edges": [],
             "decision_paths": [],
@@ -919,9 +978,7 @@ def evaluate_context(
         )
         suffix = item.requirement_id.split(":", 1)[-1]
         relation = (
-            "EVIDENCED_BY"
-            if item.state == RequirementState.SATISFIED
-            else "BLOCKED_BY"
+            "EVIDENCED_BY" if item.state == RequirementState.SATISFIED else "BLOCKED_BY"
         )
         required_edge = f"edge:release-requires:{suffix}"
         evidence_edge = f"edge:requirement-{relation.casefold()}:{suffix}"
@@ -1021,16 +1078,16 @@ def observe_execution_context(
     ci_run_id = environment.get("GITHUB_RUN_ID") if github_active else None
     raw_ci_commit = environment.get("GITHUB_SHA", "").casefold()
     ci_commit = (
-        raw_ci_commit
-        if github_active and GIT_SHA.fullmatch(raw_ci_commit)
-        else None
+        raw_ci_commit if github_active and GIT_SHA.fullmatch(raw_ci_commit) else None
     )
     if local_commit and ci_commit and local_commit != ci_commit:
         freshness = Freshness.STALE
     elif worktree_state == "dirty":
         freshness = Freshness.DIRTY
-    elif local_commit and worktree_state == "clean" and (
-        ci_provider is None or ci_commit == local_commit
+    elif (
+        local_commit
+        and worktree_state == "clean"
+        and (ci_provider is None or ci_commit == local_commit)
     ):
         freshness = Freshness.CURRENT
     else:

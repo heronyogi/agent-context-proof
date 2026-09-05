@@ -258,7 +258,6 @@ def _context_issues(report: ContextReport) -> tuple[str, ...]:
 def _build_federated_context_envelope(
     report: ContextReport,
     *,
-    policy_sha256: str,
     subject_ref: str,
     purpose_id: str,
     purpose_description: str,
@@ -274,6 +273,14 @@ def _build_federated_context_envelope(
     if trust_state not in _TRANSPORTABLE_TRUST_STATES:
         raise FederationEnvelopeError(
             f"source trust state is not representable in FET-001 v0.1: {trust_state}"
+        )
+
+    policy_sha256 = dict(report.contract_trust.verified_contract_digests).get(
+        "policy.json"
+    )
+    if policy_sha256 is None:
+        raise FederationEnvelopeError(
+            "source report does not bind verified policy bytes"
         )
 
     normalized_subject = _nonempty(subject_ref, "subject_ref")
@@ -359,14 +366,8 @@ def evaluate_federated_context_envelope(
         contract_root=contracts,
         repository_label=repository_label,
     )
-    policy_path = contracts / "policy.json"
-    try:
-        policy_sha256 = hashlib.sha256(policy_path.read_bytes()).hexdigest()
-    except OSError as exc:
-        raise FederationEnvelopeError("source policy contract is unavailable") from exc
     return _build_federated_context_envelope(
         report,
-        policy_sha256=policy_sha256,
         subject_ref=subject_ref,
         purpose_id=purpose_id,
         purpose_description=purpose_description,
